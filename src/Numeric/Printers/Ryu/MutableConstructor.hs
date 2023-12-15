@@ -4,7 +4,6 @@ module Numeric.Printers.Ryu.MutableConstructor
 
 import Data.Vector.Unboxed.Mutable qualified as MV
 import Text.Show (ShowS)
-import Control.Monad.ST (ST)
 import Data.MonoMutableIndexable (Index)
 
 class MutableConstructor a where
@@ -19,3 +18,9 @@ instance MutableConstructor ShowS where
   type MutableCollection ShowS s = MV.STVector s Char
   fromMutable i = MV.foldr ((.) . (:)) id . MV.take i
 
+-- Need to implement
+--instance MutableConstructor Data.ByteString.ByteString where
+--instance MutableConstructor Data.ByteString.Lazy.ByteString where
+--instance MutableConstructor Data.Text.Text where
+--instance MutableConstructor Data.Text.Lazy.Text where
+--instance MutableConstructor Foreign.C.CString where

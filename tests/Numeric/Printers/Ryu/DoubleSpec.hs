@@ -28,8 +28,6 @@ import GHC.Num (negate)
 import Numeric.IEEE (infinity, nan)
 import Unsafe.Coerce (unsafeCoerce)
 
-import System.IO (putStrLn)
-
 spec :: Spec
 spec = do
   describe "Double" do
@@ -101,7 +99,7 @@ spec = do
 
       ---- Test min, max shift values in shiftright128
     it "MinMaxShift" do
-      let maxMantissa = (1 `shiftL` 53) - 1;
+      let maxMantissa = (1 `shiftL` 53) - 1 :: Word64
       -- 32-bit opt-size=0:  49 <= dist <= 50
       -- 32-bit opt-size=1:  30 <= dist <= 50
       -- 64-bit opt-size=0:  50 <= dist <= 50

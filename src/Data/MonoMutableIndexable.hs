@@ -2,9 +2,8 @@ module Data.MonoMutableIndexable
   ( MutableIndexable(..)
   ) where
 
-import Control.Monad.ST (ST)
 import Data.Vector.Unboxed.Base (Unbox)
-import Data.Vector.Unboxed.Mutable (STVector, unsafeNew, unsafeWrite, write)
+import Data.Vector.Unboxed.Mutable (STVector, unsafeNew, {- unsafeWrite, -} write)
 
 class MutableIndexable a m where
   type Index a :: Type

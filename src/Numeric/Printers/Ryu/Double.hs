@@ -1,8 +1,3 @@
--- | Ryu: Fast Float-to-String Conversion
--- PLDI’18, June 18ś22, 2018, Philadelphia, PA,SA
--- C� 2018 Copyright held by the owner/author(s).
--- ACM ISBN 978-1-4503-5698-5/18/06.
--- https://doi.org/10.1145/3192366.3192369
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -229,8 +224,16 @@ makeMaskRight = subtract 1 . shiftL 1
 
 -- * Notation Printers
 
+-- String could be optimized to not use the mutable container but rather function composition
 instance Notation ScientificNotation Double String where
   notation s m e = runST $ uncurry fromMutable =<< notationScientificMutable @String s m e
+
+-- Need to implement
+--instance Notation ScientificNotation Double Data.ByteString.ByteString where
+--instance Notation ScientificNotation Double Data.ByteString.Lazy.ByteString where
+--instance Notation ScientificNotation Double Data.Text.Text where
+--instance Notation ScientificNotation Double Data.Text.Lazy.Text where
+--instance Notation ScientificNotation Double Foreign.C.CString where
 
 notationScientificMutable :: forall f i char c s.
   ( c ~ MutableCollection f s
@@ -241,7 +244,6 @@ notationScientificMutable :: forall f i char c s.
   , IsChar char
   , Enum char
   , char ~ Element c
-  , Show i
   )
   => Sign
   -> Word64
