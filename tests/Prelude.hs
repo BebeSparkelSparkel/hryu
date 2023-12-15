@@ -20,11 +20,11 @@ module Prelude
 import Control.Monad ((>>=), return, MonadFail, fail)
 import Data.Bool (Bool(False), otherwise)
 import Data.Char (Char)
-import Data.Eq ((==))
-import Data.Function (($))
+import Data.Eq (Eq, (==))
+import Data.Function (($), (.))
 import Data.List ((++))
 import Data.Semigroup ((<>))
-import Data.String (String)
+import Data.String (IsString, fromString, String)
 import GHC.Float (Double)
 import GHC.Num ((+), (-))
 import Numeric.Printers.Ryu (ryu)
@@ -33,4 +33,9 @@ import Numeric.Printers.Ryu.Types (Sign, ExponentWord, MantissaWord)
 import System.IO (IO, FilePath)
 import Test.Hspec
 import Text.Show (Show(show))
+
+import Foreign.C.String (CString, newCString)
+import System.IO.Unsafe (unsafePerformIO)
+
+instance IsString CString where fromString = unsafePerformIO . newCString
 

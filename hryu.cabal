@@ -47,6 +47,7 @@ library
   build-depends:
       base
     , bytestring
+    , data-array-byte
     , data-default
     , extra
     , monad-loops

@@ -38,6 +38,7 @@ library:
     - extra
     - monad-loops
     - data-default
+    - data-array-byte
   other-modules:
     - Prelude
   ghc-options:

@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-missing-methods #-}
 module Prelude
   ( module Control.Applicative
   , module Control.Monad
@@ -27,10 +29,15 @@ module Prelude
   , module GHC.TypeNats
   , module Text.Show
   , module Control.Monad.ST
+  , module Text.Printf
+  , module System.IO
+  , module System.IO.Unsafe
 
   , (>$>)
   ) where
 
+import System.IO (IO)
+import System.IO.Unsafe (unsafePerformIO)
 import Control.Applicative ((*>), pure)
 import Control.Monad (Monad, (=<<), (>>=), (>=>), MonadFail, fail, when)
 import Data.Bifunctor (first)
@@ -51,15 +58,30 @@ import Data.Ord (Ord, (<=), (>=), (>), (<))
 import Data.String (String, IsString(fromString))
 import Data.Tuple (fst, snd, uncurry)
 import Data.Vector (Vector)
-import Data.Word (Word64, Word32, Word)
+import Data.Word (Word64, Word32, Word16, Word8, Word)
 import GHC.Enum (Enum, toEnum, fromEnum, pred, succ)
 import GHC.Float (Double, Float)
 import GHC.Num (Num, (+), (-), (*), negate, subtract)
-import GHC.Real (Real, Integral, mod, div)
+import GHC.Real (Real, Integral, mod, div, fromIntegral)
 import GHC.TypeNats (Nat)
 import Text.Show (Show(show))
 import Control.Monad.ST (runST, ST)
+import Text.Printf (IsChar, fromChar, toChar)
+
+import Foreign.C.String (castCharToCChar)
+import Foreign.C.Types (CChar)
+import Data.ByteString.Internal (c2w)
 
 (>$>) :: Monad m => (a -> m b) -> (b -> c) -> a -> m c
 (>$>) f g = f >=> pure . g
+
+instance IsChar CChar where
+  --toChar = castCCharToChar
+  fromChar = castCharToCChar
+
+instance IsChar Word8 where
+  fromChar = c2w
+
+instance IsChar Word16 where
+  fromChar = fromIntegral . c2w
 

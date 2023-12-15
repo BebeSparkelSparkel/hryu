@@ -3,19 +3,22 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Numeric.Printers.Ryu.Double () where
 
+import Data.Text qualified as T
+import Data.Text.Lazy qualified as TL
+import Foreign.C.String (CString)
+import Data.ByteString qualified as B
+import Data.ByteString.Lazy qualified as BL
 import Data.MonoMutableIndexable (MutableIndexable, Element, Index, allocate, writeIndex)
 import Data.Tuple.Extra (first3, second3, third3)
 import Data.Vector qualified as V
 import Data.WideWord.Word128 (Word128(Word128), word128Lo64)
 import GHC.Err (undefined)
 import GHC.Float (isNegativeZero, isInfinite, isNaN)
-import GHC.Real (fromIntegral)
 import Numeric.Printers.Ryu.Double2StringFullTable (doublePow5InvSplit, doublePow5Split)
 import Numeric.Printers.Ryu.MutableConstructor (MutableCollection, fromMutable)
 import Numeric.Printers.Ryu.NonNormal ()
 import Numeric.Printers.Ryu.Notations (Notation, notation, ScientificNotation)
 import Numeric.Printers.Ryu.Types (RyuNormals, ExponentWord, MantissaWord, ryuNormals, ryuNormalSubnormal, ClassifyType, classifyType, Sign, SpecialValue(NegativeZero,PositiveZero,PositiveInfinity,NegativeInfinity,NotANumber))
-import Text.Printf (IsChar(fromChar))
 import Unsafe.Coerce (unsafeCoerce)
 
 instance Notation notation Double text => RyuNormals notation Double text where
@@ -227,31 +230,41 @@ makeMaskRight = subtract 1 . shiftL 1
 -- String could be optimized to not use the mutable container but rather function composition
 instance Notation ScientificNotation Double String where
   notation s m e = runST $ uncurry fromMutable =<< notationScientificMutable @String s m e
+instance Notation ScientificNotation Double B.ByteString where
+  notation s m e = unsafePerformIO $ uncurry fromMutable =<< notationScientificMutable @B.ByteString s m e
+instance Notation ScientificNotation Double BL.ByteString where
+  notation s m e = unsafePerformIO $ uncurry fromMutable =<< notationScientificMutable @BL.ByteString s m e
+instance Notation ScientificNotation Double T.Text where
+  notation s m e = runST $ uncurry fromMutable =<< notationScientificMutable @T.Text s m e
+instance Notation ScientificNotation Double TL.Text where
+  notation s m e = runST $ uncurry fromMutable =<< notationScientificMutable @TL.Text s m e
+instance Notation ScientificNotation Double CString where
+  notation s m e = snd . unsafePerformIO $ notationScientificMutable @BL.ByteString s m e
 
 -- Need to implement
---instance Notation ScientificNotation Double Data.ByteString.ByteString where
 --instance Notation ScientificNotation Double Data.ByteString.Lazy.ByteString where
 --instance Notation ScientificNotation Double Data.Text.Text where
 --instance Notation ScientificNotation Double Data.Text.Lazy.Text where
 --instance Notation ScientificNotation Double Foreign.C.CString where
 
-notationScientificMutable :: forall f i char c s.
-  ( c ~ MutableCollection f s
+notationScientificMutable :: forall f i char c m.
+  ( c ~ MutableCollection f m
   , i ~ Index c
   , Num i
   , Enum i
-  , MutableIndexable c (ST s)
+  , MutableIndexable c m
   , IsChar char
   , Enum char
+  , Monad m
   , char ~ Element c
   )
   => Sign
   -> Word64
   -> Int
-  -> ST s (i, MutableCollection f s)
+  -> m (i, MutableCollection f m)
 notationScientificMutable sign output exponent =
-  (allocate 25 :: ST s c) >>= \(result :: c)  -> let
-  writeSign :: ST s i
+  (allocate 25 :: m c) >>= \(result :: c)  -> let
+  writeSign :: m i
   writeSign = if sign
     then wi 0 (fromChar '-') $> 1
     else pure 0
@@ -259,10 +272,10 @@ notationScientificMutable sign output exponent =
   -- We have at most 17 digits, and uint32_t can store 9 digits.
   -- If output doesn't fit into uint32_t, we cut off 8 digits,
   -- so the rest will fit into uint32_t.
-  writeDecimalDigits :: i -> ST s ()
+  writeDecimalDigits :: i -> m ()
   writeDecimalDigits index = cutOff8Digits >>= whileGT10000 >>= whenLT10000
     where
-    cutOff8Digits :: ST s (i, Word32)
+    cutOff8Digits :: m (i, Word32)
     cutOff8Digits = if (output `shiftR` 32 /= 0)
       then do
         copy2Chars (i' - 1) c0
@@ -281,7 +294,7 @@ notationScientificMutable sign output exponent =
       c1 = (c `div` 100) `shiftL` 1
       d0 = (d `mod` 100) `shiftL` 1
       d1 = (d `div` 100) `shiftL` 1
-    whileGT10000 :: (i, Word32) -> ST s (i, Word32)
+    whileGT10000 :: (i, Word32) -> m (i, Word32)
     whileGT10000 (i, output2) = if output2 >= 10000
       then do
         copy2Chars (i' - i - 1) c0
@@ -292,7 +305,7 @@ notationScientificMutable sign output exponent =
       c = output2 `mod` 10000
       c0 = (c `mod` 100) `shiftL` 1
       c1 = (c `div` 100) `shiftL` 1
-    whenLT10000 :: (i, Word32) -> ST s ()
+    whenLT10000 :: (i, Word32) -> m ()
     whenLT10000
       =   (\t@(i,output2) -> if output2 >= 100
             then copy2Chars (i' - i - 1) ((output2 `mod` 100) `shiftL` 1)
@@ -305,14 +318,14 @@ notationScientificMutable sign output exponent =
               wi index $ digitTable V.! fromIntegral c
             else wi index $ addToZeroChar output2
     i' = index + fromIntegral olength
-  writeDecimalPoint :: i -> ST s i
+  writeDecimalPoint :: i -> m i
   writeDecimalPoint index =
     if (olength > 1)
     then do
       wi (succ index) (fromChar '.')
       pure $ index + fromIntegral olength + 1
     else pure $ succ index
-  writeExponent :: i -> ST s i
+  writeExponent :: i -> m i
   writeExponent
     =   (\index -> wi index (fromChar 'E') $> succ index)
     >=> (\index -> let exp = exponent + olength - 1 in if exp < 0
@@ -332,10 +345,10 @@ notationScientificMutable sign output exponent =
       else do
         wi index $ addToZeroChar exp
         pure $ succ index
-  wi :: i -> char -> ST s ()
+  wi :: i -> char -> m ()
   wi = writeIndex result
   -- used inplace of memcpy
-  copy2Chars :: Integral n => i -> n -> ST s ()
+  copy2Chars :: Integral n => i -> n -> m ()
   copy2Chars i (fromIntegral -> i') = do
     wi i $ digitTable V.! i'
     wi (succ i) $ digitTable V.! succ i'
