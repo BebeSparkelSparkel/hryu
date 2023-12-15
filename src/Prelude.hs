@@ -13,6 +13,7 @@ module Prelude
   , module Data.Functor
   , module Data.Int
   , module Data.Kind
+  , module Data.Maybe
   , module Data.Monoid
   , module Data.Ord
   , module Data.String
@@ -25,6 +26,7 @@ module Prelude
   , module GHC.Real
   , module GHC.TypeNats
   , module Text.Show
+  , module Control.Monad.ST
 
   , (>$>)
   ) where
@@ -43,18 +45,20 @@ import Data.Function ((.), ($), (&), id, flip, const)
 import Data.Functor ((<$>), ($>))
 import Data.Int (Int32, Int64, Int)
 import Data.Kind (Type, Constraint)
+import Data.Maybe (Maybe(Nothing,Just), fromMaybe)
 import Data.Monoid (mempty, (<>))
 import Data.Ord (Ord, (<=), (>=), (>), (<))
 import Data.String (String, IsString(fromString))
 import Data.Tuple (fst, snd, uncurry)
 import Data.Vector (Vector)
 import Data.Word (Word64, Word32, Word)
-import GHC.Enum (Enum, toEnum, fromEnum, pred)
+import GHC.Enum (Enum, toEnum, fromEnum, pred, succ)
 import GHC.Float (Double, Float)
-import GHC.Num (Num, (+), (-))
-import GHC.Real (Real, Integral)
+import GHC.Num (Num, (+), (-), (*), negate, subtract)
+import GHC.Real (Real, Integral, mod, div)
 import GHC.TypeNats (Nat)
 import Text.Show (Show(show))
+import Control.Monad.ST (runST, ST)
 
 (>$>) :: Monad m => (a -> m b) -> (b -> c) -> a -> m c
 (>$>) f g = f >=> pure . g

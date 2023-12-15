@@ -8,20 +8,17 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Numeric.Printers.Ryu.Double () where
 
-import Control.Monad.ST (runST, ST)
 import Data.MonoMutableIndexable (MutableIndexable, Element, Index, allocate, writeIndex)
 import Data.Tuple.Extra (first3, second3, third3)
 import Data.Vector qualified as V
 import Data.WideWord.Word128 (Word128(Word128), word128Lo64)
-import GHC.Enum (succ)
 import GHC.Err (undefined)
 import GHC.Float (isNegativeZero, isInfinite, isNaN)
-import GHC.Num ((*), negate, subtract)
-import GHC.Real (fromIntegral, mod, div)
+import GHC.Real (fromIntegral)
 import Numeric.Printers.Ryu.Double2StringFullTable (doublePow5InvSplit, doublePow5Split)
 import Numeric.Printers.Ryu.MutableConstructor (MutableCollection, fromMutable)
 import Numeric.Printers.Ryu.NonNormal ()
-import Numeric.Printers.Ryu.Notations (ScientificNotation)
+import Numeric.Printers.Ryu.Notations (Notation, notation, ScientificNotation)
 import Numeric.Printers.Ryu.Types (RyuNormals, ExponentWord, MantissaWord, ryuNormals, ryuNormalSubnormal, ClassifyType, classifyType, Sign, SpecialValue(NegativeZero,PositiveZero,PositiveInfinity,NegativeInfinity,NotANumber))
 import Text.Printf (IsChar(fromChar))
 import Unsafe.Coerce (unsafeCoerce)
@@ -32,7 +29,9 @@ instance Notation notation Double text => RyuNormals notation Double text where
   ryuNormals f = case classifyType f of
     Right (s,e,m) -> pure $ ryuNormalSubnormal @notation @Double s e m
     _ -> fail $ "Expected a normal or subnormal number but received: " <> show f
-  ryuNormalSubnormal sign exponent mantissa = uncurry (notation @notation @Double sign) $ d2d exponent mantissa
+  ryuNormalSubnormal sign ieeeExponent ieeeMantissa = uncurry (notation @notation @Double sign) $ fromMaybe
+    (d2d ieeeExponent ieeeMantissa)
+    (d2d_small_int ieeeExponent ieeeMantissa)
 
 instance ClassifyType Double where
   classifyType f = if ieeeExponent == maskExponentRight || (ieeeExponent == 0 && ieeeMantissa == 0)
@@ -57,15 +56,13 @@ extractExponent = fromIntegral . (.&. maskExponentRight) . (`shiftR` numMantissa
 extractMantissa :: Double -> Word64
 extractMantissa = (.&. maskMantissaRight) . toWord
 
-d2d :: Word32 -> Word64 -> (Word64, Int)
-d2d e m = (output, exp)
+d2d :: Exponent -> Mantissa -> (Word64, Int)
+d2d ieeeExponent ieeeMantissa = (output, exp)
   where
   exp = e10 + removed
-
   (removed, output) = if vmIsTrailingZeros || vrIsTrailingZeros
     then generalLoopsUncommon vr vp vm vmIsTrailingZeros vrIsTrailingZeros 0 0 acceptBounds
     else specializedLoopsCommon vr vp vm False 0
-
   (e10, vr, vp, vm, vmIsTrailingZeros, vrIsTrailingZeros) = if e2 >= 0
     then let
       q = bool id pred (e2 > 3) . fromIntegral $ log10Pow2 e2 :: Int
@@ -98,89 +95,86 @@ d2d e m = (output, exp)
         then third3 $ const $ multipleOfPowerOf2 mv q
         else id
       in (e10, vr, vp, vm, vmIsTrailingZeros, vrIsTrailingZeros)
-
   mv = 4 * m2
-  mmShift = bool 0 1 $ m /= 0 || e <= 1
-
+  mmShift = bool 0 1 $ ieeeMantissa /= 0 || ieeeExponent <= 1
   acceptBounds = even
   even = m2 .&. 1 == 0
-  (e2 :: Int, m2) = first (subtract $ bias + numMantissaBits + 2) case e of
-    0 -> (1, m)
-    _ -> ( fromIntegral e
-         , 1 `shiftL` numMantissaBits .|. m )
-
-generalLoopsUncommon :: VR -> VP -> VM -> VmIsTrailingZeros -> VrIsTrailingZeros -> Removed -> LastRemovedDigit -> AcceptBounds -> (Removed, Output)
-generalLoopsUncommon vr vp vm vmIsTrailingZeros vrIsTrailingZeros removed lastRemovedDigit
-  | vpDiv10 <= vmDiv10 = if vmIsTrailingZeros
-    then generalLoopsUncommon' vr vp vm vrIsTrailingZeros removed lastRemovedDigit vmIsTrailingZeros
-    else generalLoopsUncommonOutput vr vm lastRemovedDigit vrIsTrailingZeros removed vmIsTrailingZeros
-  | otherwise = generalLoopsUncommon 
-    vrDiv10 -- vr
-    vpDiv10 -- vp
-    vmDiv10 -- vm
-    (vmIsTrailingZeros && vmMod10 == 0) -- vmIsTrailingZeros
-    (vrIsTrailingZeros && lastRemovedDigit == 0) -- vrIsTrailingZeros
-    (succ removed)-- removed
-    (fromIntegral vrMod10) -- lastRemovedDigit
-  where
-  vmDiv10 = vm `div` 10
-  vmMod10 = vm `mod` 10
-  vpDiv10 = vp `div` 10
-  vrDiv10 = vr `div` 10
-  vrMod10 = vr - 10 * vrDiv10
-generalLoopsUncommon' :: VR -> VP -> VM -> VrIsTrailingZeros -> Removed -> LastRemovedDigit -> VmIsTrailingZeros -> AcceptBounds -> (Removed, Output)
-generalLoopsUncommon' vr vp vm vrIsTrailingZeros removed lastRemovedDigit
-  | vmMod10 /= 0 = generalLoopsUncommonOutput vr vm lastRemovedDigit vrIsTrailingZeros removed
-  | otherwise = generalLoopsUncommon'
-    vrDiv10 -- vr
-    vpDiv10 -- vp
-    vmDiv10 -- vm
-    (vrIsTrailingZeros && lastRemovedDigit == 0) -- vrIsTrailingZeros
-    (succ removed) -- removed
-    (fromIntegral vrMod10) -- lastRemovedDigit
-  where
-  vmDiv10 = vm `div` 10
-  vmMod10 = vm - 10 * vmDiv10
-  vpDiv10 = vp `div` 10
-  vrDiv10 = vr `div` 10
-  vrMod10 = vr - 10 * vrDiv10
-generalLoopsUncommonOutput :: VR -> VM -> LastRemovedDigit -> VrIsTrailingZeros -> Removed -> VmIsTrailingZeros -> AcceptBounds -> (Removed, Output)
-generalLoopsUncommonOutput vr vm lastRemovedDigit vrIsTrailingZeros removed vmIsTrailingZeros acceptBounds =
-  (removed, vr + if (vr == vm && (not acceptBounds || not vmIsTrailingZeros)) || lrd >= 5 then 1 else 0)
-  where
-  lrd = if vrIsTrailingZeros && lastRemovedDigit == 5 && vr `mod` 2 == 0
-    then 4
-    else lastRemovedDigit
-
-specializedLoopsCommon :: VR -> VP -> VM -> RoundUp -> Removed -> (Removed, Output)
-specializedLoopsCommon vr vp vm roundUp removed
-  | vpDiv100 > vmDiv100 = specializedLoopsCommon'
-    vrDiv100 -- vr
-    vpDiv100-- vp
-    vmDiv100 -- vm
-    (vrMod100 >= 50) -- roundUp
-    (removed + 2) -- removed
-  | otherwise = specializedLoopsCommon' vr vp vm roundUp removed
-  where
-  vpDiv100 = vp `div` 100
-  vmDiv100 = vm `div` 100
-  vrDiv100 = vr `div` 100
-  vrMod100 = vr `mod` 100
-specializedLoopsCommon' :: VR -> VP -> VM -> RoundUp -> Removed -> (Removed, Output)
-specializedLoopsCommon' vr vp vm roundUp removed
-  | vpDiv10 <= vmDiv10 = (removed, vr & bool id succ (vr == vm || roundUp))
-  | otherwise = specializedLoopsCommon'
-    vrDiv10 -- vr
-    vpDiv10 -- vp
-    vmDiv10 -- vm
-    (vrMod10 >= 5) -- roundUp
-    (succ removed) -- removed
-  where
-  vrDiv10 = vr `div` 10
-  vrMod10 = vr `mod` 10
-  vpDiv10 = vp `div` 10
-  vmDiv10 = vm `div` 10
-
+  (e2 :: Int, m2) = first (subtract $ bias + numMantissaBits + 2) case ieeeExponent of
+    0 -> (1, ieeeMantissa)
+    _ -> ( fromIntegral ieeeExponent
+         , 1 `shiftL` numMantissaBits .|. ieeeMantissa )
+  generalLoopsUncommon :: VR -> VP -> VM -> VmIsTrailingZeros -> VrIsTrailingZeros -> Removed -> LastRemovedDigit -> AcceptBounds -> (Removed, Output)
+  generalLoopsUncommon vr vp vm vmIsTrailingZeros vrIsTrailingZeros removed lastRemovedDigit
+    | vpDiv10 <= vmDiv10 = if vmIsTrailingZeros
+      then generalLoopsUncommon' vr vp vm vrIsTrailingZeros removed lastRemovedDigit vmIsTrailingZeros
+      else generalLoopsUncommonOutput vr vm lastRemovedDigit vrIsTrailingZeros removed vmIsTrailingZeros
+    | otherwise = generalLoopsUncommon 
+      vrDiv10 -- vr
+      vpDiv10 -- vp
+      vmDiv10 -- vm
+      (vmIsTrailingZeros && vmMod10 == 0) -- vmIsTrailingZeros
+      (vrIsTrailingZeros && lastRemovedDigit == 0) -- vrIsTrailingZeros
+      (succ removed)-- removed
+      (fromIntegral vrMod10) -- lastRemovedDigit
+    where
+    vmDiv10 = vm `div` 10
+    vmMod10 = vm `mod` 10
+    vpDiv10 = vp `div` 10
+    vrDiv10 = vr `div` 10
+    vrMod10 = vr - 10 * vrDiv10
+  generalLoopsUncommon' :: VR -> VP -> VM -> VrIsTrailingZeros -> Removed -> LastRemovedDigit -> VmIsTrailingZeros -> AcceptBounds -> (Removed, Output)
+  generalLoopsUncommon' vr vp vm vrIsTrailingZeros removed lastRemovedDigit
+    | vmMod10 /= 0 = generalLoopsUncommonOutput vr vm lastRemovedDigit vrIsTrailingZeros removed
+    | otherwise = generalLoopsUncommon'
+      vrDiv10 -- vr
+      vpDiv10 -- vp
+      vmDiv10 -- vm
+      (vrIsTrailingZeros && lastRemovedDigit == 0) -- vrIsTrailingZeros
+      (succ removed) -- removed
+      (fromIntegral vrMod10) -- lastRemovedDigit
+    where
+    vmDiv10 = vm `div` 10
+    vmMod10 = vm - 10 * vmDiv10
+    vpDiv10 = vp `div` 10
+    vrDiv10 = vr `div` 10
+    vrMod10 = vr - 10 * vrDiv10
+  generalLoopsUncommonOutput :: VR -> VM -> LastRemovedDigit -> VrIsTrailingZeros -> Removed -> VmIsTrailingZeros -> AcceptBounds -> (Removed, Output)
+  generalLoopsUncommonOutput vr vm lastRemovedDigit vrIsTrailingZeros removed vmIsTrailingZeros acceptBounds =
+    (removed, vr + if (vr == vm && (not acceptBounds || not vmIsTrailingZeros)) || lrd >= 5 then 1 else 0)
+    where
+    lrd = if vrIsTrailingZeros && lastRemovedDigit == 5 && vr `mod` 2 == 0
+      then 4
+      else lastRemovedDigit
+  specializedLoopsCommon :: VR -> VP -> VM -> RoundUp -> Removed -> (Removed, Output)
+  specializedLoopsCommon vr vp vm roundUp removed
+    | vpDiv100 > vmDiv100 = specializedLoopsCommon'
+      vrDiv100 -- vr
+      vpDiv100-- vp
+      vmDiv100 -- vm
+      (vrMod100 >= 50) -- roundUp
+      (removed + 2) -- removed
+    | otherwise = specializedLoopsCommon' vr vp vm roundUp removed
+    where
+    vpDiv100 = vp `div` 100
+    vmDiv100 = vm `div` 100
+    vrDiv100 = vr `div` 100
+    vrMod100 = vr `mod` 100
+  specializedLoopsCommon' :: VR -> VP -> VM -> RoundUp -> Removed -> (Removed, Output)
+  specializedLoopsCommon' vr vp vm roundUp removed
+    | vpDiv10 <= vmDiv10 = (removed, vr & bool id succ (vr == vm || roundUp))
+    | otherwise = specializedLoopsCommon'
+      vrDiv10 -- vr
+      vpDiv10 -- vp
+      vmDiv10 -- vm
+      (vrMod10 >= 5) -- roundUp
+      (succ removed) -- removed
+    where
+    vrDiv10 = vr `div` 10
+    vrMod10 = vr `mod` 10
+    vpDiv10 = vp `div` 10
+    vmDiv10 = vm `div` 10
+type Exponent = Word32
+type Mantissa = Word64
 type VR = Word64
 type VP = Word64
 type VM = Word64
@@ -192,16 +186,28 @@ type LastRemovedDigit = Word
 type AcceptBounds = Bool
 type Output = Word64
 
+d2d_small_int :: Exponent -> Mantissa -> Maybe (Word64, Int)
+d2d_small_int ieeeExponent ieeeMantissa =
+  if e2 > 0 || e2 < (-52) || fraction /= 0
+  then Nothing
+  else Just $ loop (m2 `shiftR` negate e2) 0
+  where
+  m2 = (1 `shiftL` numMantissaBits) .|. ieeeMantissa
+  e2 = fromIntegral ieeeExponent - bias - numMantissaBits
+  mask = 1 `shiftL` negate e2 - 1
+  fraction = m2 .&. mask
+  loop :: Mantissa -> Int -> (Word64, Int)
+  loop m e = if r /= 0
+    then (m, e)
+    else loop q (succ e)
+    where
+    q = m `div` 10
+    r = fromIntegral m - 10 * fromIntegral q :: Word32
+
 -- * Helpers
 
 negZero :: Word64
 negZero = 1 `rotateR` 1
-
---posInf :: Word64
---posInf = maskExponentRight `shiftL` numMantissaBits
---
---negInf :: Word64
---negInf = negZero .|. posInf
 
 toWord :: Double -> w
 toWord = unsafeCoerce
@@ -222,8 +228,6 @@ makeMaskRight :: (Bits w, Num w) => Int -> w
 makeMaskRight = subtract 1 . shiftL 1
 
 -- * Notation Printers
-
-class Notation notation a text where notation :: Sign -> Word64 -> Int -> text
 
 instance Notation ScientificNotation Double String where
   notation s m e = runST $ uncurry fromMutable =<< notationScientificMutable @String s m e
