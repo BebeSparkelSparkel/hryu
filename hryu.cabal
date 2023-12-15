@@ -1,0 +1,109 @@
+cabal-version: 2.0
+
+-- This file has been generated from package.yaml by hpack version 0.35.2.
+--
+-- see: https://github.com/sol/hpack
+
+name:           hryu
+version:        0.0.0.1
+build-type:     Simple
+
+library
+  exposed-modules:
+      Data.MonoMutableIndexable
+      Numeric.Printers.Ryu
+      Numeric.Printers.Ryu.Double
+      Numeric.Printers.Ryu.Double2StringFullTable
+      Numeric.Printers.Ryu.MutableConstructor
+      Numeric.Printers.Ryu.NonNormal
+      Numeric.Printers.Ryu.Notations
+      Numeric.Printers.Ryu.Types
+  other-modules:
+      Prelude
+  hs-source-dirs:
+      src/
+  default-extensions:
+      ImportQualifiedPost
+      OverloadedStrings
+      AllowAmbiguousTypes
+      RankNTypes
+      BlockArguments
+      StandaloneDeriving
+      StandaloneKindSignatures
+      TypeApplications
+      DataKinds
+      ScopedTypeVariables
+      TypeFamilies
+      MultiWayIf
+      FlexibleInstances
+      FlexibleContexts
+      GeneralizedNewtypeDeriving
+      RecordWildCards
+      MultiParamTypeClasses
+      ViewPatterns
+      TupleSections
+      LambdaCase
+  ghc-options: -Weverything -Wno-implicit-prelude -Wno-missing-deriving-strategies -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-safe-haskell-mode -Wno-safe -Wno-unsafe -Wno-unused-packages
+  build-depends:
+      base
+    , bytestring
+    , data-default
+    , extra
+    , monad-loops
+    , text
+    , vector
+    , wide-word
+  mixins:
+      base hiding (Prelude)
+  default-language: Haskell2010
+
+test-suite spec
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Numeric.Printers.Ryu.DoubleSpec
+      Prelude
+      Paths_hryu
+  autogen-modules:
+      Paths_hryu
+  hs-source-dirs:
+      tests/
+  default-extensions:
+      ImportQualifiedPost
+      OverloadedStrings
+      AllowAmbiguousTypes
+      RankNTypes
+      BlockArguments
+      StandaloneDeriving
+      StandaloneKindSignatures
+      TypeApplications
+      DataKinds
+      ScopedTypeVariables
+      TypeFamilies
+      MultiWayIf
+      FlexibleInstances
+      FlexibleContexts
+      GeneralizedNewtypeDeriving
+      RecordWildCards
+      MultiParamTypeClasses
+      ViewPatterns
+      TupleSections
+      LambdaCase
+      OverloadedStrings
+      OverloadedLists
+      NamedFieldPuns
+  ghc-options: -Weverything -fprint-potential-instances -Wno-implicit-prelude -Wno-incomplete-uni-patterns -Wno-missing-deriving-strategies -Wno-missing-export-lists -Wno-missing-import-lists -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-safe-haskell-mode -Wno-orphans -Wno-safe -Wno-unsafe -Wno-unused-packages
+  build-depends:
+      QuickCheck
+    , base
+    , bytestring
+    , hryu
+    , hspec
+    , hspec-discover
+    , ieee754
+    , quickcheck-instances
+    , text
+    , vector
+  mixins:
+      base hiding (Prelude)
+  default-language: Haskell2010

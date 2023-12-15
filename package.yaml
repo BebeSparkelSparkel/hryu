@@ -1,0 +1,90 @@
+name: hryu
+version: 0.0.0.1
+
+dependencies:
+  - text
+  - vector
+  - bytestring
+  - name: base
+    mixin:
+      - hiding (Prelude)
+
+default-extensions:
+  - ImportQualifiedPost
+  - OverloadedStrings
+  - AllowAmbiguousTypes
+  - RankNTypes
+  - BlockArguments
+  - StandaloneDeriving
+  - StandaloneKindSignatures
+  - TypeApplications
+  - DataKinds
+  - ScopedTypeVariables
+  - TypeFamilies
+  - MultiWayIf
+  - FlexibleInstances
+  - FlexibleContexts
+  - GeneralizedNewtypeDeriving
+  - RecordWildCards
+  - MultiParamTypeClasses
+  - ViewPatterns
+  - TupleSections
+  - LambdaCase
+
+library:
+  source-dirs: src/
+  dependencies:
+    - wide-word
+    - extra
+    - monad-loops
+    - data-default
+  other-modules:
+    - Prelude
+  ghc-options:
+    #- -Werror
+    - -Weverything
+
+    - -Wno-implicit-prelude
+    - -Wno-missing-deriving-strategies
+    - -Wno-missing-kind-signatures
+    - -Wno-missing-local-signatures
+    - -Wno-missing-safe-haskell-mode
+    - -Wno-safe
+    - -Wno-unsafe
+
+    - -Wno-unused-packages
+
+tests:
+  spec:
+    main: Spec.hs
+    source-dirs: tests/
+    dependencies:
+      - hryu
+      - QuickCheck
+      - hspec
+      - hspec-discover
+      - quickcheck-instances
+      - ieee754
+    default-extensions:
+      - OverloadedStrings
+      - OverloadedLists
+      - NamedFieldPuns
+    ghc-options:
+      #- -Werror
+      - -Weverything
+      - -fprint-potential-instances
+
+      - -Wno-implicit-prelude
+      - -Wno-incomplete-uni-patterns
+      - -Wno-missing-deriving-strategies
+      - -Wno-missing-export-lists
+      - -Wno-missing-import-lists
+      - -Wno-missing-kind-signatures
+      - -Wno-missing-local-signatures
+      - -Wno-missing-safe-haskell-mode
+      - -Wno-orphans
+      - -Wno-safe
+      - -Wno-unsafe
+
+      - -Wno-unused-packages
+
