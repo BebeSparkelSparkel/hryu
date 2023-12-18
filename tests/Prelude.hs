@@ -15,24 +15,42 @@ module Prelude
   , module System.IO
   , module Test.Hspec
   , module Text.Show
+  , module Text.Read
+  , module Test.Hspec.QuickCheck
+  , module Data.Int
+  , module Data.Bits
+  , module Data.Ord
+  , module Data.Word
+  , module GHC.Real
+  , module Numeric.IEEE
+  , module Unsafe.Coerce
   ) where
 
-import Control.Monad ((>>=), return, MonadFail, fail)
+import Control.Monad ((>>=), return, MonadFail, fail, unless)
+import Data.Bits (rotateR, shiftL, (.|.))
 import Data.Bool (Bool(False), otherwise)
 import Data.Char (Char)
 import Data.Eq (Eq, (==))
-import Data.Function (($), (.))
+import Data.Function (($), (.), id)
+import Data.Int (Int)
 import Data.List ((++))
+import Data.Ord ((<=))
 import Data.Semigroup ((<>))
 import Data.String (IsString, fromString, String)
+import Data.Word (Word64, Word)
 import GHC.Float (Double)
-import GHC.Num ((+), (-))
+import GHC.Num ((+), (-), negate)
+import GHC.Real (fromIntegral, (/))
+import Numeric.IEEE (infinity, nan)
 import Numeric.Printers.Ryu (ryu)
-import Numeric.Printers.Ryu.Notations (ScientificNotation)
+import Numeric.Printers.Ryu.Notations (ScientificNotation, DecimalNotation, ShortestOfDecimalAndScientificNotation)
 import Numeric.Printers.Ryu.Types (Sign, ExponentWord, MantissaWord)
 import System.IO (IO, FilePath)
 import Test.Hspec
+import Test.Hspec.QuickCheck
+import Text.Read (read)
 import Text.Show (Show(show))
+import Unsafe.Coerce (unsafeCoerce)
 
 import Foreign.C.String (CString, newCString)
 import System.IO.Unsafe (unsafePerformIO)

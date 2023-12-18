@@ -1,11 +1,11 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Numeric.Printers.Ryu.Double () where
 
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
-import Foreign.C.String (CString)
 import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as BL
 import Data.MonoMutableIndexable (MutableIndexable, Element, Index, allocate, writeIndex)
@@ -17,7 +17,7 @@ import GHC.Float (isNegativeZero, isInfinite, isNaN)
 import Numeric.Printers.Ryu.Double2StringFullTable (doublePow5InvSplit, doublePow5Split)
 import Numeric.Printers.Ryu.MutableConstructor (MutableCollection, fromMutable)
 import Numeric.Printers.Ryu.NonNormal ()
-import Numeric.Printers.Ryu.Notations (Notation, notation, ScientificNotation)
+import Numeric.Printers.Ryu.Notations (Notation, notation, ScientificNotation, DecimalNotation, ShortestOfDecimalAndScientificNotation)
 import Numeric.Printers.Ryu.Types (RyuNormals, ExponentWord, MantissaWord, ryuNormals, ryuNormalSubnormal, ClassifyType, classifyType, Sign, SpecialValue(NegativeZero,PositiveZero,PositiveInfinity,NegativeInfinity,NotANumber))
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -38,7 +38,7 @@ instance ClassifyType Double where
     | f == 0 -> PositiveZero
     | isInfinite f -> if f > 0 then PositiveInfinity else NegativeInfinity
     | isNaN f -> NotANumber
-    | True -> undefined
+    | otherwise -> undefined
   else Right (ieeeSign, ieeeExponent, ieeeMantissa)
     where
     ieeeSign = extractSign f
@@ -183,6 +183,7 @@ type RoundUp = Bool
 type LastRemovedDigit = Word
 type AcceptBounds = Bool
 type Output = Word64
+type Digits = Word64
 
 d2d_small_int :: Exponent -> Mantissa -> Maybe (Word64, Int)
 d2d_small_int ieeeExponent ieeeMantissa =
@@ -238,8 +239,8 @@ instance Notation ScientificNotation Double T.Text where
   notation s m e = runST $ uncurry fromMutable =<< notationScientificMutable @T.Text s m e
 instance Notation ScientificNotation Double TL.Text where
   notation s m e = runST $ uncurry fromMutable =<< notationScientificMutable @TL.Text s m e
-instance Notation ScientificNotation Double CString where
-  notation s m e = snd . unsafePerformIO $ notationScientificMutable @BL.ByteString s m e
+--instance Notation ScientificNotation Double CString where
+--  notation s m e = snd . unsafePerformIO $ notationScientificMutable @BL.ByteString s m e
 
 -- Need to implement
 --instance Notation ScientificNotation Double Data.ByteString.Lazy.ByteString where
@@ -259,10 +260,10 @@ notationScientificMutable :: forall f i char c m.
   , char ~ Element c
   )
   => Sign
-  -> Word64
+  -> Digits
   -> Int
   -> m (i, MutableCollection f m)
-notationScientificMutable sign output exponent =
+notationScientificMutable sign digits exponent =
   (allocate 25 :: m c) >>= \(result :: c)  -> let
   writeSign :: m i
   writeSign = if sign
@@ -270,13 +271,13 @@ notationScientificMutable sign output exponent =
     else pure 0
   -- We prefer 32-bit operations, even on 64-bit platforms.
   -- We have at most 17 digits, and uint32_t can store 9 digits.
-  -- If output doesn't fit into uint32_t, we cut off 8 digits,
+  -- If digits doesn't fit into uint32_t, we cut off 8 digits,
   -- so the rest will fit into uint32_t.
   writeDecimalDigits :: i -> m ()
   writeDecimalDigits index = cutOff8Digits >>= whileGT10000 >>= whenLT10000
     where
     cutOff8Digits :: m (i, Word32)
-    cutOff8Digits = if (output `shiftR` 32 /= 0)
+    cutOff8Digits = if (digits `shiftR` 32 /= 0)
       then do
         copy2Chars (i' - 1) c0
         copy2Chars (i' - 3) c1
@@ -284,10 +285,10 @@ notationScientificMutable sign output exponent =
         copy2Chars (i' - 7) d1
         let output2 = fromIntegral q
         pure (8, output2)
-      else let output2 = fromIntegral output in pure (0, output2)
+      else let output2 = fromIntegral digits in pure (0, output2)
       where
-      q = output `div` 100000000 :: Word64
-      output2 = fromIntegral output - 100000000 * fromIntegral q :: Word32
+      q = digits `div` 100000000 :: Word64
+      output2 = fromIntegral digits - 100000000 * fromIntegral q :: Word32
       c = output2 `mod` 10000
       d = (output2 `div` 10000) `mod` 10000
       c0 = (c `mod` 100) `shiftL` 1
@@ -354,9 +355,228 @@ notationScientificMutable sign output exponent =
     wi (succ i) $ digitTable V.! succ i'
   in writeSign >>= \index -> writeDecimalDigits index *> writeDecimalPoint index >>= writeExponent >$> (, result)
   where
-  addToZeroChar :: Integral n => n -> char
-  addToZeroChar = toEnum . (fromEnum (fromChar '0' :: char) +) . fromIntegral
-  olength = decimalLength17 output
+  olength = decimalLength17 digits
+
+addToZeroChar :: forall n char. (IsChar char, Enum char, Integral n) => n -> char
+addToZeroChar = toEnum . (fromEnum (fromChar '0' :: char) +) . fromIntegral
+
+instance Notation DecimalNotation Double String where
+  notation s m e = runST $ uncurry fromMutable =<< notationDecimalMutable @String s m e
+instance Notation DecimalNotation Double B.ByteString where
+  notation s m e = unsafePerformIO $ uncurry fromMutable =<< notationDecimalMutable @B.ByteString s m e
+instance Notation DecimalNotation Double BL.ByteString where
+  notation s m e = unsafePerformIO $ uncurry fromMutable =<< notationDecimalMutable @BL.ByteString s m e
+instance Notation DecimalNotation Double T.Text where
+  notation s m e = runST $ uncurry fromMutable =<< notationDecimalMutable @T.Text s m e
+instance Notation DecimalNotation Double TL.Text where
+  notation s m e = runST $ uncurry fromMutable =<< notationDecimalMutable @TL.Text s m e
+
+notationDecimalMutable :: forall f i char c m.
+  ( Num i
+  , Ord i
+  , Enum i
+  , Monad m
+  , IsChar char
+  , Enum char
+  , MutableIndexable c m
+  , i ~ Index c
+  , char ~ Element c
+  , c ~ MutableCollection f m
+  , Show i
+  , Show char
+  )
+  => Sign
+  -> Digits
+  -> Int
+  -> m (i, MutableCollection f m)
+notationDecimalMutable sign digits exponent = if
+  -- has traling zeros
+  | exponent >= 0 -> allocate (fromIntegral $ 1 + dl + exponent) >>= \result -> let
+    ?result = result
+    in  negSign
+    >>= returning (wholeDigits digits . pred) . (+ fromIntegral dl)
+    >>= (\i -> zeroFill (i + fromIntegral exponent) i )
+    >>= pure . (, result)
+  -- digits split by decimal point
+  | dl > ne -> allocate (fromIntegral $ 2 + dl) >>= \result -> let
+    ?result = result
+    in  negSign
+    >>= returning (uncurry wholeDigits <=< rightOfSplitPointDigits) . (+ fromIntegral dl)
+    >>= pure . (, result) . succ
+  -- leading zeros
+  | otherwise -> allocate (fromIntegral $ 3 + ne) >>= \result -> let
+    ?result = result
+    in  negSign
+    >>= leadingZeros
+    >>= returning (wholeDigits digits) . (+ fromIntegral (pred dl))
+    >>= pure . (, result) . succ
+  where
+  negSign :: (?result :: c) => m i
+  negSign = if sign
+    then wi 0 (fromChar '-') $> 1
+    else pure 0
+  leadingZeros :: (?result :: c) => i -> m i
+  leadingZeros i = do
+      wi i (fromChar '0')
+      wi (succ i) (fromChar '.')
+      zeroFill (i + 2 + lz) (i + 2)
+    where
+    lz = fromIntegral $ ne - dl
+  rightOfSplitPointDigits :: (?result :: c) => i -> m (Digits, i)
+  rightOfSplitPointDigits i = loop digits i
+    where
+    loop ds i = if si < i
+      then wi i (addToZeroChar $ ds `mod` 10) *> loop (ds `div` 10) (pred i)
+      else wi i (fromChar '.') $> (ds, pred i)
+    si = i + fromIntegral exponent
+  -- i is the right index not the left
+  wholeDigits :: (?result :: c) => Digits -> i -> m ()
+  wholeDigits ds i = when (ds > 0) do
+    wi i (addToZeroChar md)
+    wholeDigits (ds `div` 10) (pred i)
+    where
+    md = ds `mod` 10
+  zeroFill :: (?result :: c) => i -> i -> m i
+  zeroFill ei i = if i < ei
+    then wi i (fromChar '0') *> zeroFill ei (succ i)
+    else pure ei
+  dl = decimalLength17 digits
+  ne = negate exponent
+  wi :: (?result :: c) => i -> char -> m ()
+  wi = writeIndex ?result
+
+returning :: Functor f => (a -> f b) -> a -> f a
+returning f x = f x $> x
+
+-- E >= 0 && (P + 2 >= E || (P == 1 && E <= 2))
+-- E <  0 && (E >= (-3) || (P == 1 && E >= (-2)))
+-- 
+-- : P 1, E 2
+-- 1
+-- 1e0
+-- 10
+-- 1e1
+-- 100
+-- 1e2
+-- 1000
+-- 1e3
+-- 
+-- : P 2, E 4
+-- 12
+-- 1.2e2
+-- 120
+-- 1.2e2
+-- 1200
+-- 1.2e3
+-- 12000
+-- 1.2e4
+-- 120000
+-- 1.2e5
+-- 
+-- : P 3, E 5
+-- 123
+-- 1.23e2
+-- 1230
+-- 1.23e3
+-- 12300
+-- 1.23e4
+-- 123000
+-- 1.23e5
+-- 1230000
+-- 1.23e6
+-- 
+-- : P 4, E 6
+-- 1234
+-- 1.234e3
+-- 12340
+-- 1.234e4
+-- 123400
+-- 1.234e5
+-- 1234000
+-- 1.234e6
+-- 12340000
+-- 1.234e7
+-- 
+-- : P 5, E 7
+-- 12345
+-- 1.2345e4
+-- 123450
+-- 1.2345e5
+-- 1234500
+-- 1.2345e6
+-- 12345000
+-- 1.2345e7
+-- 123450000
+-- 1.2345e8
+-- 
+-- : P 1, E -2
+-- 0.1
+-- 1e-1
+-- 0.01
+-- 1e-2
+-- 0.001
+-- 1e-3
+-- 
+-- : P 2, E -3
+-- 0.12
+-- 1.2e-1
+-- 0.012
+-- 1.2e-2
+-- 0.0012
+-- 1.2e-3
+-- 0.00012
+-- 1.2e-4
+-- 
+-- : P 3, E -3
+-- 0.123
+-- 1.23e-1
+-- 0.0123
+-- 1.23e-2
+-- 0.00123
+-- 1.23e-3
+-- 0.000123
+-- 1.23e-4
+-- 
+-- : P 4, E -3
+-- 0.1234
+-- 1.234e-1
+-- 0.01234
+-- 1.234e-2
+-- 0.001234
+-- 1.234e-3
+-- 0.0001234
+-- 1.234e-4
+-- 
+-- : P 5, E -3
+-- 0.12345
+-- 1.2345e-1
+-- 0.012345
+-- 1.2345e-2
+-- 0.0012345
+-- 1.2345e-3
+-- 0.00012345
+-- 1.2345e-4
+-- 
+-- : P 2, E
+-- 1.2
+-- 1.2e0
+-- ...
+-- 
+-- : P 3, E
+-- 1.23
+-- 1.23e0
+-- 12.3
+-- 1.23e1
+-- ...
+instance (Notation DecimalNotation Double text, Notation ScientificNotation Double text) =>
+  Notation ShortestOfDecimalAndScientificNotation Double text where
+  notation sign digits e =
+    ( if e >= 0 && (dl + 2 >= e || dl == 1 && e <= 2) || e < 0 && (e >= (-3) || dl == 1 && e >= (-2))
+      then notation @DecimalNotation    @Double
+      else notation @ScientificNotation @Double
+    ) sign digits e
+    where
+    dl = decimalLength17 digits
 
 -- The average output length is 16.38 digits, so we check high-to-low.
 -- Function precondition: v is not an 18, 19, or 20-digit number.
@@ -406,11 +626,11 @@ mulShiftAll64 m mul j mmShift = (vp, vm, vr)
 multipleOfPowerOf5 :: Word64 -> Int -> Bool
 multipleOfPowerOf5 value p = pow5Factor 0 value >= p
   where
-  pow5Factor count value
+  pow5Factor count value'
     | v > n_div_5 = count
     | otherwise = pow5Factor (succ count) v
     where
-    v = value * m_inv_5
+    v = value' * m_inv_5
   m_inv_5 = 14757395258967641293 :: Word64 -- 5 * m_inv_5 = 1 (mod 2^64)
   n_div_5 = 3689348814741910323 :: Word64  -- #{ n | n = 0 (mod 2^64) } = 2^64 / 5
 
