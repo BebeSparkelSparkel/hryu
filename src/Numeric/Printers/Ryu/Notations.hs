@@ -14,3 +14,4 @@ data ScientificNotation
 data DecimalNotation
 
 data ShortestOfDecimalAndScientificNotation
+

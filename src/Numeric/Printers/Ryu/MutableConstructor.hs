@@ -3,18 +3,18 @@ module Numeric.Printers.Ryu.MutableConstructor
   ( MutableConstructor(..)
   ) where
 
+import Data.Array.Byte (MutableByteArray(MutableByteArray))
 import Data.ByteString qualified as B
+import Data.ByteString.Lazy qualified as BL
+import Data.ByteString.Unsafe qualified as B
+import Data.MonoMutableIndexable (Index)
 import Data.Text qualified as T
+import Data.Text.Array (MArray(MArray), unsafeFreeze)
 import Data.Text.Internal qualified as T
 import Data.Text.Lazy qualified as TL
-import Data.ByteString.Unsafe qualified as B
-import Data.ByteString.Lazy qualified as BL
-import Foreign.C.String (CString)
-import Data.Array.Byte (MutableByteArray(MutableByteArray))
 import Data.Vector.Unboxed.Mutable qualified as MV
+import Foreign.C.String (CString)
 import Text.Show (ShowS)
-import Data.MonoMutableIndexable (Index)
-import Data.Text.Array (MArray(MArray), unsafeFreeze)
 
 class MutableConstructor a m where
   type MutableCollection a m :: Type

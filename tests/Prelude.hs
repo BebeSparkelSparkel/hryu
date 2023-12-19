@@ -24,6 +24,8 @@ module Prelude
   , module GHC.Real
   , module Numeric.IEEE
   , module Unsafe.Coerce
+  , module Data.MonoTraversable.Unprefixed
+  , module Data.MonoTraversable
   ) where
 
 import Control.Monad ((>>=), return, MonadFail, fail, unless)
@@ -43,7 +45,7 @@ import GHC.Num ((+), (-), negate)
 import GHC.Real (fromIntegral, (/))
 import Numeric.IEEE (infinity, nan)
 import Numeric.Printers.Ryu (ryu)
-import Numeric.Printers.Ryu.Notations (ScientificNotation, DecimalNotation, ShortestOfDecimalAndScientificNotation)
+import Numeric.Printers.Ryu.Notations (Notation, ScientificNotation, DecimalNotation, ShortestOfDecimalAndScientificNotation)
 import Numeric.Printers.Ryu.Types (Sign, ExponentWord, MantissaWord)
 import System.IO (IO, FilePath)
 import Test.Hspec
@@ -51,6 +53,8 @@ import Test.Hspec.QuickCheck
 import Text.Read (read)
 import Text.Show (Show(show))
 import Unsafe.Coerce (unsafeCoerce)
+import Data.MonoTraversable.Unprefixed (length)
+import Data.MonoTraversable (MonoFoldable)
 
 import Foreign.C.String (CString, newCString)
 import System.IO.Unsafe (unsafePerformIO)

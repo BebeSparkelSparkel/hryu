@@ -15,11 +15,12 @@ import Data.WideWord.Word128 (Word128(Word128), word128Lo64)
 import GHC.Err (undefined)
 import GHC.Float (isNegativeZero, isInfinite, isNaN)
 import Numeric.Printers.Ryu.Double2StringFullTable (doublePow5InvSplit, doublePow5Split)
-import Numeric.Printers.Ryu.MutableConstructor (MutableCollection, fromMutable)
+import Numeric.Printers.Ryu.MutableConstructor (MutableConstructor, MutableCollection, fromMutable)
 import Numeric.Printers.Ryu.NonNormal ()
 import Numeric.Printers.Ryu.Notations (Notation, notation, ScientificNotation, DecimalNotation, ShortestOfDecimalAndScientificNotation)
 import Numeric.Printers.Ryu.Types (RyuNormals, ExponentWord, MantissaWord, ryuNormals, ryuNormalSubnormal, ClassifyType, classifyType, Sign, SpecialValue(NegativeZero,PositiveZero,PositiveInfinity,NegativeInfinity,NotANumber))
 import Unsafe.Coerce (unsafeCoerce)
+import Text.Show (ShowS)
 
 instance Notation notation Double text => RyuNormals notation Double text where
   type ExponentWord Double = Word32
@@ -230,26 +231,37 @@ makeMaskRight = subtract 1 . shiftL 1
 
 -- String could be optimized to not use the mutable container but rather function composition
 instance Notation ScientificNotation Double String where
-  notation s m e = runST $ uncurry fromMutable =<< notationScientificMutable @String s m e
+  notation s d e = runST $ notationScientificMutableTemplate @String s d e
+instance Notation ScientificNotation Double ShowS where
+  notation s d e = runST $ notationScientificMutableTemplate s d e
 instance Notation ScientificNotation Double B.ByteString where
-  notation s m e = unsafePerformIO $ uncurry fromMutable =<< notationScientificMutable @B.ByteString s m e
+  notation s d e = unsafePerformIO $ notationScientificMutableTemplate @B.ByteString s d e
 instance Notation ScientificNotation Double BL.ByteString where
-  notation s m e = unsafePerformIO $ uncurry fromMutable =<< notationScientificMutable @BL.ByteString s m e
+  notation s d e = unsafePerformIO $ notationScientificMutableTemplate @BL.ByteString s d e
 instance Notation ScientificNotation Double T.Text where
-  notation s m e = runST $ uncurry fromMutable =<< notationScientificMutable @T.Text s m e
+  notation s d e = runST $ notationScientificMutableTemplate @T.Text s d e
 instance Notation ScientificNotation Double TL.Text where
-  notation s m e = runST $ uncurry fromMutable =<< notationScientificMutable @TL.Text s m e
---instance Notation ScientificNotation Double CString where
---  notation s m e = snd . unsafePerformIO $ notationScientificMutable @BL.ByteString s m e
+  notation s d e = runST $ notationScientificMutableTemplate @TL.Text s d e
 
--- Need to implement
---instance Notation ScientificNotation Double Data.ByteString.Lazy.ByteString where
---instance Notation ScientificNotation Double Data.Text.Text where
---instance Notation ScientificNotation Double Data.Text.Lazy.Text where
---instance Notation ScientificNotation Double Foreign.C.CString where
+notationScientificMutableTemplate :: forall text m c i char.
+  ( Monad m
+  , Num i
+  , Ord i
+  , Enum i
+  , Show i
+  , Show char
+  , Enum char
+  , IsChar char
+  , MutableConstructor text m
+  , MutableIndexable c m
+  , c ~ MutableCollection text m
+  , i ~ Index c
+  , char ~ Element c
+  ) => Sign -> Digits -> Int -> m text
+notationScientificMutableTemplate s d e = uncurry fromMutable =<< notationScientificMutable @text (decimalLength17 d) s d e
 
-notationScientificMutable :: forall f i char c m.
-  ( c ~ MutableCollection f m
+notationScientificMutable :: forall text i char c m.
+  ( c ~ MutableCollection text m
   , i ~ Index c
   , Num i
   , Enum i
@@ -259,11 +271,12 @@ notationScientificMutable :: forall f i char c m.
   , Monad m
   , char ~ Element c
   )
-  => Sign
+  => Int
+  -> Sign
   -> Digits
   -> Int
-  -> m (i, MutableCollection f m)
-notationScientificMutable sign digits exponent =
+  -> m (i, MutableCollection text m)
+notationScientificMutable dl sign digits exponent =
   (allocate 25 :: m c) >>= \(result :: c)  -> let
   writeSign :: m i
   writeSign = if sign
@@ -361,17 +374,36 @@ addToZeroChar :: forall n char. (IsChar char, Enum char, Integral n) => n -> cha
 addToZeroChar = toEnum . (fromEnum (fromChar '0' :: char) +) . fromIntegral
 
 instance Notation DecimalNotation Double String where
-  notation s m e = runST $ uncurry fromMutable =<< notationDecimalMutable @String s m e
+  notation s d e = runST $ notationDecimalMutableTemplate s d e
+instance Notation DecimalNotation Double ShowS where
+  notation s d e = runST $ notationDecimalMutableTemplate s d e
 instance Notation DecimalNotation Double B.ByteString where
-  notation s m e = unsafePerformIO $ uncurry fromMutable =<< notationDecimalMutable @B.ByteString s m e
+  notation s d e = unsafePerformIO $ notationDecimalMutableTemplate s d e
 instance Notation DecimalNotation Double BL.ByteString where
-  notation s m e = unsafePerformIO $ uncurry fromMutable =<< notationDecimalMutable @BL.ByteString s m e
+  notation s d e = unsafePerformIO $ notationDecimalMutableTemplate s d e
 instance Notation DecimalNotation Double T.Text where
-  notation s m e = runST $ uncurry fromMutable =<< notationDecimalMutable @T.Text s m e
+  notation s d e = runST $ notationDecimalMutableTemplate s d e
 instance Notation DecimalNotation Double TL.Text where
-  notation s m e = runST $ uncurry fromMutable =<< notationDecimalMutable @TL.Text s m e
+  notation s d e = runST $ notationDecimalMutableTemplate s d e
 
-notationDecimalMutable :: forall f i char c m.
+notationDecimalMutableTemplate :: forall text m c i char.
+  ( Monad m
+  , Num i
+  , Ord i
+  , Enum i
+  , Show i
+  , Show char
+  , Enum char
+  , IsChar char
+  , MutableConstructor text m
+  , MutableIndexable c m
+  , c ~ MutableCollection text m
+  , i ~ Index c
+  , char ~ Element c
+  ) => Sign -> Digits -> Int -> m text
+notationDecimalMutableTemplate s d e = uncurry fromMutable =<< notationDecimalMutable @text (decimalLength17 d) s d e
+
+notationDecimalMutable :: forall text i char c m.
   ( Num i
   , Ord i
   , Enum i
@@ -381,34 +413,35 @@ notationDecimalMutable :: forall f i char c m.
   , MutableIndexable c m
   , i ~ Index c
   , char ~ Element c
-  , c ~ MutableCollection f m
+  , c ~ MutableCollection text m
   , Show i
   , Show char
   )
-  => Sign
+  => Int
+  -> Sign
   -> Digits
   -> Int
-  -> m (i, MutableCollection f m)
-notationDecimalMutable sign digits exponent = if
+  -> m (i, MutableCollection text m)
+notationDecimalMutable olength sign digits exponent = if
   -- has traling zeros
-  | exponent >= 0 -> allocate (fromIntegral $ 1 + dl + exponent) >>= \result -> let
+  | exponent >= 0 -> allocate (fromIntegral $ 1 + olength + exponent) >>= \result -> let
     ?result = result
     in  negSign
-    >>= returning (wholeDigits digits . pred) . (+ fromIntegral dl)
+    >>= returning (wholeDigits digits . pred) . (+ fromIntegral olength)
     >>= (\i -> zeroFill (i + fromIntegral exponent) i )
     >>= pure . (, result)
   -- digits split by decimal point
-  | dl > ne -> allocate (fromIntegral $ 2 + dl) >>= \result -> let
+  | olength > ne -> allocate (fromIntegral $ 2 + olength) >>= \result -> let
     ?result = result
     in  negSign
-    >>= returning (uncurry wholeDigits <=< rightOfSplitPointDigits) . (+ fromIntegral dl)
+    >>= returning (uncurry wholeDigits <=< rightOfSplitPointDigits) . (+ fromIntegral olength)
     >>= pure . (, result) . succ
   -- leading zeros
   | otherwise -> allocate (fromIntegral $ 3 + ne) >>= \result -> let
     ?result = result
     in  negSign
     >>= leadingZeros
-    >>= returning (wholeDigits digits) . (+ fromIntegral (pred dl))
+    >>= returning (wholeDigits digits) . (+ fromIntegral (pred olength))
     >>= pure . (, result) . succ
   where
   negSign :: (?result :: c) => m i
@@ -421,7 +454,7 @@ notationDecimalMutable sign digits exponent = if
       wi (succ i) (fromChar '.')
       zeroFill (i + 2 + lz) (i + 2)
     where
-    lz = fromIntegral $ ne - dl
+    lz = fromIntegral $ ne - olength
   rightOfSplitPointDigits :: (?result :: c) => i -> m (Digits, i)
   rightOfSplitPointDigits i = loop digits i
     where
@@ -440,7 +473,6 @@ notationDecimalMutable sign digits exponent = if
   zeroFill ei i = if i < ei
     then wi i (fromChar '0') *> zeroFill ei (succ i)
     else pure ei
-  dl = decimalLength17 digits
   ne = negate exponent
   wi :: (?result :: c) => i -> char -> m ()
   wi = writeIndex ?result
@@ -448,6 +480,41 @@ notationDecimalMutable sign digits exponent = if
 returning :: Functor f => (a -> f b) -> a -> f a
 returning f x = f x $> x
 
+instance Notation ShortestOfDecimalAndScientificNotation Double String where
+  notation s d e = runST $ notationShortestOfDecimalAndScientificMutationTemplate s d e
+instance Notation ShortestOfDecimalAndScientificNotation Double ShowS where
+  notation s d e = runST $ notationShortestOfDecimalAndScientificMutationTemplate s d e
+instance Notation ShortestOfDecimalAndScientificNotation Double B.ByteString where
+  notation s d e = unsafePerformIO $ notationShortestOfDecimalAndScientificMutationTemplate s d e
+instance Notation ShortestOfDecimalAndScientificNotation Double BL.ByteString where
+  notation s d e = unsafePerformIO $ notationShortestOfDecimalAndScientificMutationTemplate s d e
+instance Notation ShortestOfDecimalAndScientificNotation Double T.Text where
+  notation s d e = runST $ notationShortestOfDecimalAndScientificMutationTemplate s d e
+instance Notation ShortestOfDecimalAndScientificNotation Double TL.Text where
+  notation s d e = runST $ notationShortestOfDecimalAndScientificMutationTemplate s d e
+notationShortestOfDecimalAndScientificMutationTemplate :: forall text m c i char.
+  ( Notation DecimalNotation Double text
+  , Notation ScientificNotation Double text
+  , MutableConstructor text m
+  , Monad m
+  , Num i
+  , Ord i
+  , Enum i
+  , IsChar char
+  , Enum char
+  , MutableIndexable c m
+  , Show i
+  , Show char
+  , char ~ Element c
+  , c ~ MutableCollection text m
+  , i ~ Index c
+  )
+  => Sign
+  -> Digits
+  -> Int
+  -> m text
+notationShortestOfDecimalAndScientificMutationTemplate s d e =
+  uncurry fromMutable =<< notationShortestOfDecimalAndScientificMutation @text s d e
 -- E >= 0 && (P + 2 >= E || (P == 1 && E <= 2))
 -- E <  0 && (E >= (-3) || (P == 1 && E >= (-2)))
 -- 
@@ -568,15 +635,34 @@ returning f x = f x $> x
 -- 12.3
 -- 1.23e1
 -- ...
-instance (Notation DecimalNotation Double text, Notation ScientificNotation Double text) =>
-  Notation ShortestOfDecimalAndScientificNotation Double text where
-  notation sign digits e =
-    ( if e >= 0 && (dl + 2 >= e || dl == 1 && e <= 2) || e < 0 && (e >= (-3) || dl == 1 && e >= (-2))
-      then notation @DecimalNotation    @Double
-      else notation @ScientificNotation @Double
+notationShortestOfDecimalAndScientificMutation :: forall text m c i char.
+  ( Notation DecimalNotation Double text
+  , Notation ScientificNotation Double text
+  , MutableConstructor text m
+  , Monad m
+  , Num i
+  , Ord i
+  , Enum i
+  , IsChar char
+  , Enum char
+  , MutableIndexable c m
+  , Show i
+  , Show char
+  , char ~ Element c
+  , c ~ MutableCollection text m
+  , i ~ Index c
+  )
+  => Sign
+  -> Digits
+  -> Int
+  -> m (i, MutableCollection text m)
+notationShortestOfDecimalAndScientificMutation sign digits e =
+    ( if e >= 0 && (olength + 2 >= e || olength == 1 && e <= 2) || e < 0 && (e >= (-3) || olength == 1 && e >= (-2))
+      then notationDecimalMutable @text olength
+      else notationScientificMutable @text olength
     ) sign digits e
     where
-    dl = decimalLength17 digits
+    olength = decimalLength17 digits
 
 -- The average output length is 16.38 digits, so we check high-to-low.
 -- Function precondition: v is not an 18, 19, or 20-digit number.

@@ -66,6 +66,7 @@ tests:
       - hspec-discover
       - quickcheck-instances
       - ieee754
+      - mono-traversable
     default-extensions:
       - OverloadedStrings
       - OverloadedLists

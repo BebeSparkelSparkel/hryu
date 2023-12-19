@@ -34,11 +34,18 @@ spec = do
     describe "Lazy-Text"       $ scientificNotationTests $ ryu @ScientificNotation @Double @TL.Text
 
   describe "DecimalNotation" do
-    describe "String"          $ decimalNotationTests id        $ ryu @DecimalNotation @Double @String
-    describe "ByteString"      $ decimalNotationTests B.unpack  $ ryu @DecimalNotation @Double @B.ByteString
-    describe "Lazy-ByteString" $ decimalNotationTests BL.unpack $ ryu @DecimalNotation @Double @BL.ByteString
-    describe "Text"            $ decimalNotationTests T.unpack  $ ryu @DecimalNotation @Double @T.Text
-    describe "Lazy-Text"       $ decimalNotationTests TL.unpack $ ryu @DecimalNotation @Double @TL.Text
+    describe "String"          $ decimalNotationTests $ ryu @DecimalNotation @Double @String
+    describe "ByteString"      $ decimalNotationTests $ ryu @DecimalNotation @Double @B.ByteString
+    describe "Lazy-ByteString" $ decimalNotationTests $ ryu @DecimalNotation @Double @BL.ByteString
+    describe "Text"            $ decimalNotationTests $ ryu @DecimalNotation @Double @T.Text
+    describe "Lazy-Text"       $ decimalNotationTests $ ryu @DecimalNotation @Double @TL.Text
+
+  describe "ShortestOfDecimalAndScientificNotation" do
+    describe "String"          $ shortestOfDecimalAndScientificNotationTests $ ryu @ShortestOfDecimalAndScientificNotation @Double @String
+    describe "ByteString"      $ shortestOfDecimalAndScientificNotationTests $ ryu @ShortestOfDecimalAndScientificNotation @Double @B.ByteString
+    describe "Lazy-ByteString" $ shortestOfDecimalAndScientificNotationTests $ ryu @ShortestOfDecimalAndScientificNotation @Double @BL.ByteString
+    describe "Text"            $ shortestOfDecimalAndScientificNotationTests $ ryu @ShortestOfDecimalAndScientificNotation @Double @T.Text
+    describe "Lazy-Text"       $ shortestOfDecimalAndScientificNotationTests $ ryu @ShortestOfDecimalAndScientificNotation @Double @TL.Text
 
 scientificNotationTests :: (IsString text, Show text, Eq text) => (Double -> text) -> Spec
 scientificNotationTests ryu' = do
@@ -267,8 +274,8 @@ ieeeParts2Double sign ieeeExponent ieeeMantissa = do
 word64Bits2Double :: Word64 -> Double
 word64Bits2Double = unsafeCoerce
 
-decimalNotationTests :: (IsString text, Show text, Eq text) => (text -> String) -> (Double -> text) -> Spec
-decimalNotationTests toString ryu' = do
+decimalNotationTests :: (IsString text, Show text, Eq text, ToString text) => (Double -> text) -> Spec
+decimalNotationTests ryu' = do
   it "non-nomral" do
     ryu' (negate infinity) `shouldBe` "-Infinity"
     ryu' infinity `shouldBe` "Infinity"
@@ -322,11 +329,33 @@ decimalNotationTests toString ryu' = do
       d = (1 / fromIntegral x)
       in (read $ toString $ ryu' d) `shouldBe` d
 
-  --prop "any normal double" \d -> (read $ toString $ ryu' d) `shouldBe` d
+  prop "any normal double" \d -> (read $ toString $ ryu' d) `shouldBe` d
 
---mixedNotationTests :: (Double -> text) -> Spec
---mixedNotationTests ryu' = do
---  prop "length always <= ScientificNotation" \d ->
---    ryu' d `shouldSatisfy` (<= length (ryu @ScientificNotation d)) . length
+shortestOfDecimalAndScientificNotationTests :: forall text.
+  ( IsString text
+  , Show text
+  , Eq text
+  , ToString text
+  , MonoFoldable text
+  , Notation ScientificNotation Double text
+  ) => (Double -> text) -> Spec
+shortestOfDecimalAndScientificNotationTests ryu' = do
+  it "non-nomral" do
+    ryu' (negate infinity) `shouldBe` "-Inf"
+    ryu' infinity `shouldBe` "Inf"
+    ryu' nan `shouldBe` "NaN"
+    ryu' (-0) `shouldBe` "-0"
+    ryu' 0 `shouldBe` "0"
 
+  prop "any normal double" \d -> (read $ toString $ ryu' d) `shouldBe` d
+
+  prop "length always <= ScientificNotation" \d ->
+    ryu' d `shouldSatisfy` (<= length (ryu @ScientificNotation @_ @text d)) . length
+
+class ToString a where toString :: a -> String
+instance ToString String where toString = id 
+instance ToString B.ByteString where toString = B.unpack
+instance ToString BL.ByteString where toString = BL.unpack
+instance ToString T.Text where toString = T.unpack
+instance ToString TL.Text where toString = TL.unpack
 

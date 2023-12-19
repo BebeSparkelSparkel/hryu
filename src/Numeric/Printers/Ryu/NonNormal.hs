@@ -2,7 +2,7 @@ module Numeric.Printers.Ryu.NonNormal
   ( NonNormalReturns(..)
   ) where
 
-import Numeric.Printers.Ryu.Notations (ScientificNotation, DecimalNotation)
+import Numeric.Printers.Ryu.Notations (ScientificNotation, DecimalNotation, ShortestOfDecimalAndScientificNotation)
 
 data NonNormalReturns notation text = NonNormalReturns
   { negativeInfinity :: text
@@ -30,4 +30,12 @@ instance IsString text => Default (NonNormalReturns DecimalNotation text) where
     , positiveZero     = "0"
     }
 
+instance IsString text => Default (NonNormalReturns ShortestOfDecimalAndScientificNotation text) where
+  def = NonNormalReturns
+    { negativeInfinity = "-Inf"
+    , positiveInfinity = "Inf"
+    , notANumber       = "NaN"
+    , negativeZero     = "-0"
+    , positiveZero     = "0"
+    }
 
