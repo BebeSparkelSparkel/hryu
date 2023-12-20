@@ -1,11 +1,13 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE CPP #-}
 module Data.MonoMutableIndexable
   ( MutableIndexable(..)
   ) where
 
 import Data.Vector.Unboxed.Base (Unbox)
-import Data.Vector.Unboxed.Mutable (STVector, unsafeNew, {- unsafeWrite, -} write)
+--import Data.Vector.Unboxed.Mutable (STVector, unsafeNew, {- unsafeWrite, -} write)
+import Data.Vector.Unboxed.Mutable qualified as UMV
 import Foreign.C.String (CString)
 import Foreign.C.Types (CChar)
 import Foreign.Marshal.Alloc (mallocBytes)
@@ -25,11 +27,15 @@ class MutableIndexable a m where
   --modifyIndex :: Monad m => a -> Index a -> (Element a -> Element a) -> m ()
   --modifyIndex xs i f = writeIndex xs i . f =<< readIndex xs i
 
-instance Unbox a => MutableIndexable (STVector s a) (ST s) where
-  type Index (STVector s a) = Int
-  type Element (STVector s a) = a
-  allocate = unsafeNew
-  writeIndex = write
+instance Unbox a => MutableIndexable (UMV.STVector s a) (ST s) where
+  type Index (UMV.STVector s a) = Int
+  type Element (UMV.STVector s a) = a
+  allocate = UMV.unsafeNew
+#ifdef SAFE_INDEX
+  writeIndex = UMV.write
+#else
+  writeIndex = UMV.unsafeWrite
+#endif
 
 instance MutableIndexable CString IO where
   type Index CString = Int

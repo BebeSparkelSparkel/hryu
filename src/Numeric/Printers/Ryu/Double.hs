@@ -243,25 +243,22 @@ instance Notation ScientificNotation Double T.Text where
 instance Notation ScientificNotation Double TL.Text where
   notation s d e = runST $ notationScientificMutableTemplate @TL.Text s d e
 
-notationScientificMutableTemplate :: forall text m c i char.
+notationScientificMutableTemplate :: forall f m c i char.
   ( Monad m
   , Num i
-  , Ord i
   , Enum i
-  , Show i
-  , Show char
   , Enum char
   , IsChar char
-  , MutableConstructor text m
+  , MutableConstructor f m
   , MutableIndexable c m
-  , c ~ MutableCollection text m
+  , c ~ MutableCollection f m
   , i ~ Index c
   , char ~ Element c
-  ) => Sign -> Digits -> Int -> m text
-notationScientificMutableTemplate s d e = uncurry fromMutable =<< notationScientificMutable @text (decimalLength17 d) s d e
+  ) => Sign -> Digits -> Int -> m f
+notationScientificMutableTemplate s d e = uncurry fromMutable =<< notationScientificMutable @f (decimalLength17 d) s d e
 
-notationScientificMutable :: forall text i char c m.
-  ( c ~ MutableCollection text m
+notationScientificMutable :: forall f i char c m.
+  ( c ~ MutableCollection f m
   , i ~ Index c
   , Num i
   , Enum i
@@ -275,63 +272,17 @@ notationScientificMutable :: forall text i char c m.
   -> Sign
   -> Digits
   -> Int
-  -> m (i, MutableCollection text m)
-notationScientificMutable dl sign digits exponent =
+  -> m (i, MutableCollection f m)
+notationScientificMutable olength sign digits exponent =
   (allocate 25 :: m c) >>= \(result :: c)  -> let
   writeSign :: m i
   writeSign = if sign
     then wi 0 (fromChar '-') $> 1
     else pure 0
-  -- We prefer 32-bit operations, even on 64-bit platforms.
-  -- We have at most 17 digits, and uint32_t can store 9 digits.
-  -- If digits doesn't fit into uint32_t, we cut off 8 digits,
-  -- so the rest will fit into uint32_t.
-  writeDecimalDigits :: i -> m ()
-  writeDecimalDigits index = cutOff8Digits >>= whileGT10000 >>= whenLT10000
-    where
-    cutOff8Digits :: m (i, Word32)
-    cutOff8Digits = if (digits `shiftR` 32 /= 0)
-      then do
-        copy2Chars (i' - 1) c0
-        copy2Chars (i' - 3) c1
-        copy2Chars (i' - 5) d0
-        copy2Chars (i' - 7) d1
-        let output2 = fromIntegral q
-        pure (8, output2)
-      else let output2 = fromIntegral digits in pure (0, output2)
-      where
-      q = digits `div` 100000000 :: Word64
-      output2 = fromIntegral digits - 100000000 * fromIntegral q :: Word32
-      c = output2 `mod` 10000
-      d = (output2 `div` 10000) `mod` 10000
-      c0 = (c `mod` 100) `shiftL` 1
-      c1 = (c `div` 100) `shiftL` 1
-      d0 = (d `mod` 100) `shiftL` 1
-      d1 = (d `div` 100) `shiftL` 1
-    whileGT10000 :: (i, Word32) -> m (i, Word32)
-    whileGT10000 (i, output2) = if output2 >= 10000
-      then do
-        copy2Chars (i' - i - 1) c0
-        copy2Chars (i' - i - 3) c1
-        whileGT10000 (i + 4, output2 `div` 10000)
-      else pure (i, output2)
-      where
-      c = output2 `mod` 10000
-      c0 = (c `mod` 100) `shiftL` 1
-      c1 = (c `div` 100) `shiftL` 1
-    whenLT10000 :: (i, Word32) -> m ()
-    whenLT10000
-      =   (\t@(i,output2) -> if output2 >= 100
-            then copy2Chars (i' - i - 1) ((output2 `mod` 100) `shiftL` 1)
-                  $> (i + 2, output2 `div` 100)
-            else pure t )
-      >=> \(i,output2) -> if output2 >= 10
-            then do
-              let c = output2 `shiftL` 1
-              wi (i' - i) $ digitTable V.! fromIntegral (c + 1)
-              wi index $ digitTable V.! fromIntegral c
-            else wi index $ addToZeroChar output2
-    i' = index + fromIntegral olength
+  whenLT100GTEQ10 index i' i output2 = do
+    let c = output2 `shiftL` 1
+    wi (i' - i) $ digitTable V.! fromIntegral (c + 1)
+    wi index $ digitTable V.! fromIntegral c
   writeDecimalPoint :: i -> m i
   writeDecimalPoint index =
     if (olength > 1)
@@ -366,9 +317,78 @@ notationScientificMutable dl sign digits exponent =
   copy2Chars i (fromIntegral -> i') = do
     wi i $ digitTable V.! i'
     wi (succ i) $ digitTable V.! succ i'
-  in writeSign >>= \index -> writeDecimalDigits index *> writeDecimalPoint index >>= writeExponent >$> (, result)
+  in writeSign >>= \index -> writeDecimalDigits @c result digits index olength whenLT100GTEQ10 *> writeDecimalPoint index >>= writeExponent >$> (, result)
   where
-  olength = decimalLength17 digits
+
+writeDecimalDigits :: forall c i m char.
+  ( Num i
+  , Enum i
+  , MutableIndexable c m
+  , IsChar char
+  , Enum char
+  , Monad m
+  , char ~ Element c
+  , i ~ Index c
+  )
+  => c
+  -> Digits
+  -> i
+  -> Int
+  -> (i -> i -> i -> Word32 -> m ())
+  -> m ()
+writeDecimalDigits result digits index olength whenLT100GTEQ10 = cutOff8Digits >>= whileGT10000 >>= whenLT10000
+  where
+  -- We prefer 32-bit operations, even on 64-bit platforms.
+  -- We have at most 17 digits, and uint32_t can store 9 digits.
+  -- If digits doesn't fit into uint32_t, we cut off 8 digits,
+  -- so the rest will fit into uint32_t.
+  cutOff8Digits :: m (i, Word32)
+  cutOff8Digits = if (digits `shiftR` 32 /= 0)
+    then do
+      copy2Chars (i' - 1) c0
+      copy2Chars (i' - 3) c1
+      copy2Chars (i' - 5) d0
+      copy2Chars (i' - 7) d1
+      let output2 = fromIntegral q
+      pure (8, output2)
+    else let output2 = fromIntegral digits in pure (0, output2)
+    where
+    q = digits `div` 100000000 :: Word64
+    output2 = fromIntegral digits - 100000000 * fromIntegral q :: Word32
+    c = output2 `mod` 10000
+    d = (output2 `div` 10000) `mod` 10000
+    c0 = (c `mod` 100) `shiftL` 1
+    c1 = (c `div` 100) `shiftL` 1
+    d0 = (d `mod` 100) `shiftL` 1
+    d1 = (d `div` 100) `shiftL` 1
+  whileGT10000 :: (i, Word32) -> m (i, Word32)
+  whileGT10000 (i, output2) = if output2 >= 10000
+    then do
+      copy2Chars (i' - i - 1) c0
+      copy2Chars (i' - i - 3) c1
+      whileGT10000 (i + 4, output2 `div` 10000)
+    else pure (i, output2)
+    where
+    c = output2 `mod` 10000
+    c0 = (c `mod` 100) `shiftL` 1
+    c1 = (c `div` 100) `shiftL` 1
+  whenLT10000 :: (i, Word32) -> m ()
+  whenLT10000
+    =   (\t@(i,output2) -> if output2 >= 100
+          then copy2Chars (i' - i - 1) ((output2 `mod` 100) `shiftL` 1)
+                $> (i + 2, output2 `div` 100)
+          else pure t )
+    >=> \(i,output2) -> if output2 >= 10
+          then whenLT100GTEQ10 index i' i output2 
+          else wi index $ addToZeroChar output2
+  i' = index + fromIntegral olength
+  wi :: i -> char -> m ()
+  wi = writeIndex result
+  -- used inplace of memcpy
+  copy2Chars :: Integral n => i -> n -> m ()
+  copy2Chars i (fromIntegral -> i') = do
+    wi i $ digitTable V.! i'
+    wi (succ i) $ digitTable V.! succ i'
 
 addToZeroChar :: forall n char. (IsChar char, Enum char, Integral n) => n -> char
 addToZeroChar = toEnum . (fromEnum (fromChar '0' :: char) +) . fromIntegral
@@ -386,24 +406,23 @@ instance Notation DecimalNotation Double T.Text where
 instance Notation DecimalNotation Double TL.Text where
   notation s d e = runST $ notationDecimalMutableTemplate s d e
 
-notationDecimalMutableTemplate :: forall text m c i char.
+notationDecimalMutableTemplate :: forall f m c i char.
   ( Monad m
   , Num i
   , Ord i
   , Enum i
-  , Show i
-  , Show char
   , Enum char
   , IsChar char
-  , MutableConstructor text m
+  , MutableConstructor f m
   , MutableIndexable c m
-  , c ~ MutableCollection text m
+  , c ~ MutableCollection f m
   , i ~ Index c
   , char ~ Element c
-  ) => Sign -> Digits -> Int -> m text
-notationDecimalMutableTemplate s d e = uncurry fromMutable =<< notationDecimalMutable @text (decimalLength17 d) s d e
+  ) => Sign -> Digits -> Int -> m f
+notationDecimalMutableTemplate s d e = uncurry fromMutable =<< notationDecimalMutable @f (decimalLength17 d) s d e
 
-notationDecimalMutable :: forall text i char c m.
+-- DEV NOTE: should use writeDecimalDigits for wholeDigits and rightOfSplitPointDigits
+notationDecimalMutable :: forall f i char c m.
   ( Num i
   , Ord i
   , Enum i
@@ -413,15 +432,13 @@ notationDecimalMutable :: forall text i char c m.
   , MutableIndexable c m
   , i ~ Index c
   , char ~ Element c
-  , c ~ MutableCollection text m
-  , Show i
-  , Show char
+  , c ~ MutableCollection f m
   )
   => Int
   -> Sign
   -> Digits
   -> Int
-  -> m (i, MutableCollection text m)
+  -> m (i, MutableCollection f m)
 notationDecimalMutable olength sign digits exponent = if
   -- has traling zeros
   | exponent >= 0 -> allocate (fromIntegral $ 1 + olength + exponent) >>= \result -> let
@@ -453,8 +470,7 @@ notationDecimalMutable olength sign digits exponent = if
       wi i (fromChar '0')
       wi (succ i) (fromChar '.')
       zeroFill (i + 2 + lz) (i + 2)
-    where
-    lz = fromIntegral $ ne - olength
+    where lz = fromIntegral $ ne - olength
   rightOfSplitPointDigits :: (?result :: c) => i -> m (Digits, i)
   rightOfSplitPointDigits i = loop digits i
     where
@@ -474,6 +490,11 @@ notationDecimalMutable olength sign digits exponent = if
     then wi i (fromChar '0') *> zeroFill ei (succ i)
     else pure ei
   ne = negate exponent
+  -- -- used inplace of memcpy
+  -- copy2Chars :: Integral n => (?result :: c) => i -> n -> m ()
+  -- copy2Chars i (fromIntegral -> i') = do
+  --   wi i $ digitTable V.! i'
+  --   wi (succ i) $ digitTable V.! succ i'
   wi :: (?result :: c) => i -> char -> m ()
   wi = writeIndex ?result
 
@@ -492,10 +513,8 @@ instance Notation ShortestOfDecimalAndScientificNotation Double T.Text where
   notation s d e = runST $ notationShortestOfDecimalAndScientificMutationTemplate s d e
 instance Notation ShortestOfDecimalAndScientificNotation Double TL.Text where
   notation s d e = runST $ notationShortestOfDecimalAndScientificMutationTemplate s d e
-notationShortestOfDecimalAndScientificMutationTemplate :: forall text m c i char.
-  ( Notation DecimalNotation Double text
-  , Notation ScientificNotation Double text
-  , MutableConstructor text m
+notationShortestOfDecimalAndScientificMutationTemplate :: forall f m c i char.
+  ( MutableConstructor f m
   , Monad m
   , Num i
   , Ord i
@@ -503,18 +522,16 @@ notationShortestOfDecimalAndScientificMutationTemplate :: forall text m c i char
   , IsChar char
   , Enum char
   , MutableIndexable c m
-  , Show i
-  , Show char
   , char ~ Element c
-  , c ~ MutableCollection text m
+  , c ~ MutableCollection f m
   , i ~ Index c
   )
   => Sign
   -> Digits
   -> Int
-  -> m text
+  -> m f
 notationShortestOfDecimalAndScientificMutationTemplate s d e =
-  uncurry fromMutable =<< notationShortestOfDecimalAndScientificMutation @text s d e
+  uncurry fromMutable =<< notationShortestOfDecimalAndScientificMutation @f s d e
 -- E >= 0 && (P + 2 >= E || (P == 1 && E <= 2))
 -- E <  0 && (E >= (-3) || (P == 1 && E >= (-2)))
 -- 
@@ -635,31 +652,26 @@ notationShortestOfDecimalAndScientificMutationTemplate s d e =
 -- 12.3
 -- 1.23e1
 -- ...
-notationShortestOfDecimalAndScientificMutation :: forall text m c i char.
-  ( Notation DecimalNotation Double text
-  , Notation ScientificNotation Double text
-  , MutableConstructor text m
-  , Monad m
+notationShortestOfDecimalAndScientificMutation :: forall f m c i char.
+  ( Monad m
   , Num i
   , Ord i
   , Enum i
   , IsChar char
   , Enum char
   , MutableIndexable c m
-  , Show i
-  , Show char
   , char ~ Element c
-  , c ~ MutableCollection text m
+  , c ~ MutableCollection f m
   , i ~ Index c
   )
   => Sign
   -> Digits
   -> Int
-  -> m (i, MutableCollection text m)
+  -> m (i, MutableCollection f m)
 notationShortestOfDecimalAndScientificMutation sign digits e =
     ( if e >= 0 && (olength + 2 >= e || olength == 1 && e <= 2) || e < 0 && (e >= (-3) || olength == 1 && e >= (-2))
-      then notationDecimalMutable @text olength
-      else notationScientificMutable @text olength
+      then notationDecimalMutable @f olength
+      else notationScientificMutable @f olength
     ) sign digits e
     where
     olength = decimalLength17 digits

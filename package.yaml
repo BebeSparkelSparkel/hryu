@@ -42,7 +42,7 @@ library:
   other-modules:
     - Prelude
   ghc-options:
-    #- -Werror
+    - -Werror
     - -Weverything
 
     - -Wno-implicit-prelude
@@ -72,7 +72,7 @@ tests:
       - OverloadedLists
       - NamedFieldPuns
     ghc-options:
-      #- -Werror
+      - -Werror
       - -Weverything
       - -fprint-potential-instances
 
