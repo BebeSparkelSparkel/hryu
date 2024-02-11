@@ -8,7 +8,7 @@ module Numeric.Printers.Ryu
 
 import Numeric.Printers.Ryu.Double ()
 import Numeric.Printers.Ryu.NonNormal (NonNormalReturns(NonNormalReturns), positiveInfinity, negativeInfinity, positiveZero, negativeZero, notANumber, NonNormals, nonNormals)
-import Numeric.Printers.Ryu.Types (RyuNormals, ryuNormalSubnormal, ClassifyType, classifyType, SpecialValue(NegativeZero,PositiveZero,PositiveInfinity,NegativeInfinity,NotANumber))
+import Numeric.Printers.Ryu.Types (RyuNormals, ryuSEM, ClassifyType, classifyType, SpecialValue(NegativeZero,PositiveZero,PositiveInfinity,NegativeInfinity,NotANumber))
 import Numeric.Printers.Ryu.Notations (Notation, ScientificNotation, DecimalNotation, ShortestOfDecimalAndScientificNotation, EChar, E(Capital,Lower))
 
 
@@ -33,6 +33,6 @@ ryuTotal n (NonNormalReturns {..})
       NegativeZero -> negativeZero
       NotANumber -> notANumber
       )
-    (\(s,e,m) -> ryuNormalSubnormal @a n s e m)
+    (\(s,e,m) -> ryuSEM @a n s e m)
   . classifyType
 

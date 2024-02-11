@@ -18,7 +18,7 @@ import Numeric.Printers.Ryu.Double2StringFullTable (doublePow5InvSplit, doublePo
 import Numeric.Printers.Ryu.MutableConstructor (MutableConstructor, MutableCollection, fromMutable)
 import Numeric.Printers.Ryu.NonNormal ()
 import Numeric.Printers.Ryu.Notations (Notation, notation, ScientificNotation, DecimalNotation, ShortestOfDecimalAndScientificNotation, E, EChar, e)
-import Numeric.Printers.Ryu.Types (RyuNormals, ExponentWord, MantissaWord, ryuNormals, ryuNormalSubnormal, ClassifyType, classifyType, Sign, SpecialValue(NegativeZero,PositiveZero,PositiveInfinity,NegativeInfinity,NotANumber))
+import Numeric.Printers.Ryu.Types (RyuNormals, ExponentWord, MantissaWord, ryuNormals, ryuSEM, ClassifyType, classifyType, Sign, SpecialValue(NegativeZero,PositiveZero,PositiveInfinity,NegativeInfinity,NotANumber))
 import Unsafe.Coerce (unsafeCoerce)
 import Text.Show (ShowS)
 
@@ -26,9 +26,9 @@ instance Notation Double text notation => RyuNormals Double text notation where
   type ExponentWord Double = Word32
   type MantissaWord Double = Word64
   ryuNormals n f = case classifyType f of
-    Right (s,e,m) -> pure $ ryuNormalSubnormal @Double n s e m
+    Right (s,e,m) -> pure $ ryuSEM @Double n s e m
     _ -> fail $ "Expected a normal or subnormal number but received: " <> show f
-  ryuNormalSubnormal n sign ieeeExponent ieeeMantissa = uncurry (notation @Double n sign) $ fromMaybe
+  ryuSEM n sign ieeeExponent ieeeMantissa = uncurry (notation @Double n sign) $ fromMaybe
     (d2d ieeeExponent ieeeMantissa)
     (d2d_small_int ieeeExponent ieeeMantissa)
 
