@@ -45,7 +45,7 @@ import GHC.Num ((+), (-), negate)
 import GHC.Real (fromIntegral, (/))
 import Numeric.IEEE (infinity, nan)
 import Numeric.Printers.Ryu (ryu)
-import Numeric.Printers.Ryu.Notations (Notation, ScientificNotation, DecimalNotation, ShortestOfDecimalAndScientificNotation)
+import Numeric.Printers.Ryu.Notations (Notation, ScientificNotation, DecimalNotation, ShortestOfDecimalAndScientificNotation, E(Capital))
 import Numeric.Printers.Ryu.Types (Sign, ExponentWord, MantissaWord)
 import System.IO (IO, FilePath)
 import Test.Hspec

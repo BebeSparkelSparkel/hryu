@@ -1,24 +1,30 @@
 module Numeric.Printers.Ryu
   ( ryu
   , ryuTotal
+  , RyuNormals
+  , ClassifyType
+  , module Numeric.Printers.Ryu.Notations
   ) where
 
 import Numeric.Printers.Ryu.Double ()
-import Numeric.Printers.Ryu.NonNormal (NonNormalReturns(NonNormalReturns), positiveInfinity, negativeInfinity, positiveZero, negativeZero, notANumber)
+import Numeric.Printers.Ryu.NonNormal (NonNormalReturns(NonNormalReturns), positiveInfinity, negativeInfinity, positiveZero, negativeZero, notANumber, NonNormals, nonNormals)
 import Numeric.Printers.Ryu.Types (RyuNormals, ryuNormalSubnormal, ClassifyType, classifyType, SpecialValue(NegativeZero,PositiveZero,PositiveInfinity,NegativeInfinity,NotANumber))
+import Numeric.Printers.Ryu.Notations (Notation, ScientificNotation, DecimalNotation, ShortestOfDecimalAndScientificNotation, EChar, E(Capital,Lower))
+
 
 ryu :: forall notation a text.
-  ( RyuNormals notation a text
+  ( RyuNormals a text notation
   , ClassifyType a
-  , Default (NonNormalReturns notation text)
+  , Default notation
+  , NonNormals notation text
   ) => a -> text
-ryu = ryuTotal @notation def
+ryu = ryuTotal @notation def (nonNormals @notation def)
 
 ryuTotal :: forall notation a text.
-  ( RyuNormals notation a text
+  ( RyuNormals a text notation
   , ClassifyType a
-  ) => NonNormalReturns notation text -> a -> text
-ryuTotal (NonNormalReturns {..})
+  ) => notation -> NonNormalReturns text -> a -> text
+ryuTotal n (NonNormalReturns {..})
   = either
     (\case
       PositiveInfinity -> positiveInfinity
@@ -27,6 +33,6 @@ ryuTotal (NonNormalReturns {..})
       NegativeZero -> negativeZero
       NotANumber -> notANumber
       )
-    (\(s,e,m) -> ryuNormalSubnormal @notation @a s e m)
+    (\(s,e,m) -> ryuNormalSubnormal @a n s e m)
   . classifyType
 

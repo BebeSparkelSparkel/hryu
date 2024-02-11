@@ -1,10 +1,11 @@
 module Numeric.Printers.Ryu.NonNormal
   ( NonNormalReturns(..)
+  , NonNormals(..)
   ) where
 
-import Numeric.Printers.Ryu.Notations (ScientificNotation, DecimalNotation, ShortestOfDecimalAndScientificNotation)
+import Numeric.Printers.Ryu.Notations (ScientificNotation, DecimalNotation, ShortestOfDecimalAndScientificNotation, EChar, e)
 
-data NonNormalReturns notation text = NonNormalReturns
+data NonNormalReturns text = NonNormalReturns
   { negativeInfinity :: text
   , positiveInfinity :: text
   , notANumber       :: text
@@ -12,17 +13,19 @@ data NonNormalReturns notation text = NonNormalReturns
   , positiveZero     :: text
   } deriving Show
 
-instance IsString text => Default (NonNormalReturns ScientificNotation text) where
-  def = NonNormalReturns
+class NonNormals notation text where nonNormals :: notation -> NonNormalReturns text
+
+instance (IsString text, EChar e) => NonNormals (ScientificNotation e) text where
+  nonNormals = const NonNormalReturns
     { negativeInfinity = "-Infinity"
     , positiveInfinity = "Infinity"
     , notANumber       = "NaN"
-    , negativeZero     = "-0E0"
-    , positiveZero     = "0E0"
+    , negativeZero     = fromString $ "-0" <> (e @e : "0")
+    , positiveZero     = fromString $ '0' : e @e : "0"
     }
 
-instance IsString text => Default (NonNormalReturns DecimalNotation text) where
-  def = NonNormalReturns
+instance IsString text => NonNormals DecimalNotation text where
+  nonNormals = const NonNormalReturns
     { negativeInfinity = "-Infinity"
     , positiveInfinity = "Infinity"
     , notANumber       = "NaN"
@@ -30,8 +33,8 @@ instance IsString text => Default (NonNormalReturns DecimalNotation text) where
     , positiveZero     = "0"
     }
 
-instance IsString text => Default (NonNormalReturns ShortestOfDecimalAndScientificNotation text) where
-  def = NonNormalReturns
+instance IsString text => NonNormals (ShortestOfDecimalAndScientificNotation e) text where
+  nonNormals = const NonNormalReturns
     { negativeInfinity = "-Inf"
     , positiveInfinity = "Inf"
     , notANumber       = "NaN"

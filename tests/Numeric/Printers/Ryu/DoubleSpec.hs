@@ -27,11 +27,11 @@ import Data.Text.Lazy qualified as TL
 spec :: Spec
 spec = do
   describe "ScientificNotation" do
-    describe "String"          $ scientificNotationTests $ ryu @ScientificNotation @Double @String
-    describe "ByteString"      $ scientificNotationTests $ ryu @ScientificNotation @Double @B.ByteString
-    describe "Lazy-ByteString" $ scientificNotationTests $ ryu @ScientificNotation @Double @BL.ByteString
-    describe "Text"            $ scientificNotationTests $ ryu @ScientificNotation @Double @T.Text
-    describe "Lazy-Text"       $ scientificNotationTests $ ryu @ScientificNotation @Double @TL.Text
+    describe "String"          $ scientificNotationTests $ ryu @(ScientificNotation 'Capital) @Double @String
+    describe "ByteString"      $ scientificNotationTests $ ryu @(ScientificNotation 'Capital) @Double @B.ByteString
+    describe "Lazy-ByteString" $ scientificNotationTests $ ryu @(ScientificNotation 'Capital) @Double @BL.ByteString
+    describe "Text"            $ scientificNotationTests $ ryu @(ScientificNotation 'Capital) @Double @T.Text
+    describe "Lazy-Text"       $ scientificNotationTests $ ryu @(ScientificNotation 'Capital) @Double @TL.Text
 
   describe "DecimalNotation" do
     describe "String"          $ decimalNotationTests $ ryu @DecimalNotation @Double @String
@@ -41,11 +41,11 @@ spec = do
     describe "Lazy-Text"       $ decimalNotationTests $ ryu @DecimalNotation @Double @TL.Text
 
   describe "ShortestOfDecimalAndScientificNotation" do
-    describe "String"          $ shortestOfDecimalAndScientificNotationTests $ ryu @ShortestOfDecimalAndScientificNotation @Double @String
-    describe "ByteString"      $ shortestOfDecimalAndScientificNotationTests $ ryu @ShortestOfDecimalAndScientificNotation @Double @B.ByteString
-    describe "Lazy-ByteString" $ shortestOfDecimalAndScientificNotationTests $ ryu @ShortestOfDecimalAndScientificNotation @Double @BL.ByteString
-    describe "Text"            $ shortestOfDecimalAndScientificNotationTests $ ryu @ShortestOfDecimalAndScientificNotation @Double @T.Text
-    describe "Lazy-Text"       $ shortestOfDecimalAndScientificNotationTests $ ryu @ShortestOfDecimalAndScientificNotation @Double @TL.Text
+    describe "String"          $ shortestOfDecimalAndScientificNotationTests $ ryu @(ShortestOfDecimalAndScientificNotation 'Capital) @Double @String
+    describe "ByteString"      $ shortestOfDecimalAndScientificNotationTests $ ryu @(ShortestOfDecimalAndScientificNotation 'Capital) @Double @B.ByteString
+    describe "Lazy-ByteString" $ shortestOfDecimalAndScientificNotationTests $ ryu @(ShortestOfDecimalAndScientificNotation 'Capital) @Double @BL.ByteString
+    describe "Text"            $ shortestOfDecimalAndScientificNotationTests $ ryu @(ShortestOfDecimalAndScientificNotation 'Capital) @Double @T.Text
+    describe "Lazy-Text"       $ shortestOfDecimalAndScientificNotationTests $ ryu @(ShortestOfDecimalAndScientificNotation 'Capital) @Double @TL.Text
 
 scientificNotationTests :: (IsString text, Show text, Eq text) => (Double -> text) -> Spec
 scientificNotationTests ryu' = do
@@ -337,7 +337,6 @@ shortestOfDecimalAndScientificNotationTests :: forall text.
   , Eq text
   , ToString text
   , MonoFoldable text
-  , Notation ScientificNotation Double text
   ) => (Double -> text) -> Spec
 shortestOfDecimalAndScientificNotationTests ryu' = do
   it "non-nomral" do
@@ -347,10 +346,17 @@ shortestOfDecimalAndScientificNotationTests ryu' = do
     ryu' (-0) `shouldBe` "-0"
     ryu' 0 `shouldBe` "0"
 
+  it "found errors" do
+    
+    ryu' 2.0678 `shouldBe` "2.0678"
+    ryu' 2.06785137318 `shouldBe` "2.06785137318"
+    ryu' 1.33226762955E-15 `shouldBe` "1.33226762955E-15"
+    ryu' 1.33226762955 `shouldBe` "1.33226762955"
+
   prop "any normal double" \d -> (read $ toString $ ryu' d) `shouldBe` d
 
   prop "length always <= ScientificNotation" \d ->
-    ryu' d `shouldSatisfy` (<= length (ryu @ScientificNotation @_ @text d)) . length
+    ryu' d `shouldSatisfy` (<= length (ryu @(ScientificNotation 'Capital) @_ @T.Text d)) . length
 
 class ToString a where toString :: a -> String
 instance ToString String where toString = id 

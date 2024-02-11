@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
-{-# OPTIONS_GHC -Wno-missing-methods #-}
 module Prelude
   ( module Control.Applicative
   , module Control.Monad
@@ -29,11 +27,11 @@ module Prelude
   , module GHC.TypeNats
   , module Text.Show
   , module Control.Monad.ST
-  , module Text.Printf
   , module System.IO
   , module System.IO.Unsafe
 
   , (>$>)
+  , IsChar(..)
   ) where
 
 import Control.Applicative ((*>), (<*), pure)
@@ -65,7 +63,6 @@ import GHC.Real (Real, (^), Integral, mod, div, fromIntegral)
 import GHC.TypeNats (Nat)
 import System.IO (IO)
 import System.IO.Unsafe (unsafePerformIO)
-import Text.Printf (IsChar, fromChar, toChar)
 import Text.Show (Show(show))
 
 import Foreign.C.String (castCharToCChar)
@@ -75,13 +72,9 @@ import Data.ByteString.Internal (c2w)
 (>$>) :: Monad m => (a -> m b) -> (b -> c) -> a -> m c
 (>$>) f g = f >=> pure . g
 
-instance IsChar CChar where
-  --toChar = castCCharToChar
-  fromChar = castCharToCChar
-
-instance IsChar Word8 where
-  fromChar = c2w
-
-instance IsChar Word16 where
-  fromChar = fromIntegral . c2w
+class IsChar a where fromChar :: Char -> a
+instance IsChar Char where fromChar = id
+instance IsChar CChar where fromChar = castCharToCChar
+instance IsChar Word8 where fromChar = c2w
+instance IsChar Word16 where fromChar = fromIntegral . c2w
 
