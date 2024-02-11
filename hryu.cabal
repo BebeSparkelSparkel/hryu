@@ -51,7 +51,6 @@ library
     , data-default
     , extra
     , monad-loops
-    , text
     , vector
     , wide-word
   mixins:
@@ -104,7 +103,6 @@ test-suite spec
     , ieee754
     , mono-traversable
     , quickcheck-instances
-    , text
     , vector
   mixins:
       base hiding (Prelude)

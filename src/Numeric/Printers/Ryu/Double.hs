@@ -4,8 +4,6 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Numeric.Printers.Ryu.Double () where
 
-import Data.Text qualified as T
-import Data.Text.Lazy qualified as TL
 import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as BL
 import Data.MonoMutableIndexable (MutableIndexable, Element, Index, allocate, writeIndex)
@@ -238,10 +236,6 @@ instance EChar e => Notation Double B.ByteString (ScientificNotation e) where
   notation _ s d e = unsafePerformIO $ notationScientificMutableTemplate @e s d e
 instance EChar e => Notation Double BL.ByteString (ScientificNotation e) where
   notation _ s d e = unsafePerformIO $ notationScientificMutableTemplate @e s d e
-instance EChar e => Notation Double T.Text (ScientificNotation e) where
-  notation _ s d e = runST $ notationScientificMutableTemplate @e s d e
-instance EChar e => Notation Double TL.Text (ScientificNotation e) where
-  notation _ s d e = runST $ notationScientificMutableTemplate @e s d e
 
 notationScientificMutableTemplate :: forall (e :: E) f m c i char.
   ( Monad m
@@ -403,10 +397,6 @@ instance Notation Double B.ByteString DecimalNotation where
   notation _ s d e = unsafePerformIO $ notationDecimalMutableTemplate s d e
 instance Notation Double BL.ByteString DecimalNotation where
   notation _ s d e = unsafePerformIO $ notationDecimalMutableTemplate s d e
-instance Notation Double T.Text DecimalNotation where
-  notation _ s d e = runST $ notationDecimalMutableTemplate s d e
-instance Notation Double TL.Text DecimalNotation where
-  notation _ s d e = runST $ notationDecimalMutableTemplate s d e
 
 notationDecimalMutableTemplate :: forall f m c i char.
   ( Monad m
@@ -511,10 +501,6 @@ instance EChar e => Notation Double B.ByteString (ShortestOfDecimalAndScientific
   notation _ s d e = unsafePerformIO $ notationShortestOfDecimalAndScientificMutationTemplate @e  s d e
 instance EChar e => Notation Double BL.ByteString (ShortestOfDecimalAndScientificNotation e) where
   notation _ s d e = unsafePerformIO $ notationShortestOfDecimalAndScientificMutationTemplate @e  s d e
-instance EChar e => Notation Double T.Text (ShortestOfDecimalAndScientificNotation e) where
-  notation _ s d e = runST $ notationShortestOfDecimalAndScientificMutationTemplate @e  s d e
-instance EChar e => Notation Double TL.Text (ShortestOfDecimalAndScientificNotation e) where
-  notation _ s d e = runST $ notationShortestOfDecimalAndScientificMutationTemplate @e  s d e
 notationShortestOfDecimalAndScientificMutationTemplate :: forall (e :: E) f m c i char.
   ( MutableConstructor f m
   , Monad m

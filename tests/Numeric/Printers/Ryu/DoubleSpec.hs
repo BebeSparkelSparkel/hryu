@@ -21,8 +21,6 @@ import Numeric.Printers.Ryu.Double ()
 
 import Data.ByteString.Char8 qualified as B
 import Data.ByteString.Lazy.Char8 qualified as BL
-import Data.Text qualified as T
-import Data.Text.Lazy qualified as TL
 
 spec :: Spec
 spec = do
@@ -30,22 +28,16 @@ spec = do
     describe "String"          $ scientificNotationTests $ ryu @(ScientificNotation 'Capital) @Double @String
     describe "ByteString"      $ scientificNotationTests $ ryu @(ScientificNotation 'Capital) @Double @B.ByteString
     describe "Lazy-ByteString" $ scientificNotationTests $ ryu @(ScientificNotation 'Capital) @Double @BL.ByteString
-    describe "Text"            $ scientificNotationTests $ ryu @(ScientificNotation 'Capital) @Double @T.Text
-    describe "Lazy-Text"       $ scientificNotationTests $ ryu @(ScientificNotation 'Capital) @Double @TL.Text
 
   describe "DecimalNotation" do
     describe "String"          $ decimalNotationTests $ ryu @DecimalNotation @Double @String
     describe "ByteString"      $ decimalNotationTests $ ryu @DecimalNotation @Double @B.ByteString
     describe "Lazy-ByteString" $ decimalNotationTests $ ryu @DecimalNotation @Double @BL.ByteString
-    describe "Text"            $ decimalNotationTests $ ryu @DecimalNotation @Double @T.Text
-    describe "Lazy-Text"       $ decimalNotationTests $ ryu @DecimalNotation @Double @TL.Text
 
   describe "ShortestOfDecimalAndScientificNotation" do
     describe "String"          $ shortestOfDecimalAndScientificNotationTests $ ryu @(ShortestOfDecimalAndScientificNotation 'Capital) @Double @String
     describe "ByteString"      $ shortestOfDecimalAndScientificNotationTests $ ryu @(ShortestOfDecimalAndScientificNotation 'Capital) @Double @B.ByteString
     describe "Lazy-ByteString" $ shortestOfDecimalAndScientificNotationTests $ ryu @(ShortestOfDecimalAndScientificNotation 'Capital) @Double @BL.ByteString
-    describe "Text"            $ shortestOfDecimalAndScientificNotationTests $ ryu @(ShortestOfDecimalAndScientificNotation 'Capital) @Double @T.Text
-    describe "Lazy-Text"       $ shortestOfDecimalAndScientificNotationTests $ ryu @(ShortestOfDecimalAndScientificNotation 'Capital) @Double @TL.Text
 
 scientificNotationTests :: (IsString text, Show text, Eq text) => (Double -> text) -> Spec
 scientificNotationTests ryu' = do
@@ -356,12 +348,10 @@ shortestOfDecimalAndScientificNotationTests ryu' = do
   prop "any normal double" \d -> (read $ toString $ ryu' d) `shouldBe` d
 
   prop "length always <= ScientificNotation" \d ->
-    ryu' d `shouldSatisfy` (<= length (ryu @(ScientificNotation 'Capital) @_ @T.Text d)) . length
+    ryu' d `shouldSatisfy` (<= length (ryu @(ScientificNotation 'Capital) @_ @String d)) . length
 
 class ToString a where toString :: a -> String
 instance ToString String where toString = id 
 instance ToString B.ByteString where toString = B.unpack
 instance ToString BL.ByteString where toString = BL.unpack
-instance ToString T.Text where toString = T.unpack
-instance ToString TL.Text where toString = TL.unpack
 
